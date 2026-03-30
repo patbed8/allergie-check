@@ -19,12 +19,15 @@ function BarcodeInput() {
     const trimmed = barcode.trim()
     if (!trimmed) return
 
+    // Normalize UPC-A (12 digits) to EAN-13 (13 digits) by padding with a leading zero
+    const normalized = trimmed.length === 12 ? '0' + trimmed : trimmed
+
     setProduct(null)
     setError(null)
     setLoading(true)
 
     try {
-      const res = await fetch(`${OFF_API_URL}/${trimmed}.json`)
+      const res = await fetch(`${OFF_API_URL}/${normalized}.json`)
       const data = await res.json()
 
       if (data.status === 0) {
