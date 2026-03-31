@@ -1,6 +1,6 @@
-import { Text } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { Ionicons } from '@expo/vector-icons'
 import { useProfiles } from './src/hooks/useProfiles'
 import { useLanguage } from './src/hooks/useLanguage'
 import ScannerScreen from './src/components/ScannerScreen'
@@ -14,7 +14,17 @@ const NAV_LABELS = {
 }
 
 export default function App() {
-  const { profiles, addProfile, removeProfile, addAllergen, removeAllergen, loaded } = useProfiles()
+  const {
+    profiles,
+    addProfile,
+    removeProfile,
+    updateProfileName,
+    addAllergy,
+    removeAllergy,
+    addIntolerance,
+    removeIntolerance,
+    loaded,
+  } = useProfiles()
   const { lang, setLang } = useLanguage()
 
   if (!loaded) return null
@@ -25,36 +35,31 @@ export default function App() {
     <NavigationContainer>
       <Tab.Navigator
         initialRouteName="Scanner"
-        screenOptions={{
+        screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: '#3b82f6',
           tabBarInactiveTintColor: '#94a3b8',
           tabBarStyle: { backgroundColor: '#ffffff' },
-        }}
+          tabBarIcon: ({ color, size }) => {
+            const icon = route.name === 'Scanner' ? 'camera-outline' : 'people-outline'
+            return <Ionicons name={icon} size={size} color={color} />
+          },
+        })}
       >
-        <Tab.Screen
-          name="Scanner"
-          options={{
-            title: nav.scanner,
-            tabBarIcon: () => <Text style={{ fontSize: 20 }}>📷</Text>,
-          }}
-        >
+        <Tab.Screen name="Scanner" options={{ title: nav.scanner }}>
           {() => <ScannerScreen profiles={profiles} lang={lang} />}
         </Tab.Screen>
-        <Tab.Screen
-          name="Profiles"
-          options={{
-            title: nav.profiles,
-            tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text>,
-          }}
-        >
+        <Tab.Screen name="Profiles" options={{ title: nav.profiles }}>
           {() => (
             <ProfilesScreen
               profiles={profiles}
               addProfile={addProfile}
               removeProfile={removeProfile}
-              addAllergen={addAllergen}
-              removeAllergen={removeAllergen}
+              updateProfileName={updateProfileName}
+              addAllergy={addAllergy}
+              removeAllergy={removeAllergy}
+              addIntolerance={addIntolerance}
+              removeIntolerance={removeIntolerance}
               lang={lang}
               setLang={setLang}
             />
