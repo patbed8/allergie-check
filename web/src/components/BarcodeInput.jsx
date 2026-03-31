@@ -6,11 +6,13 @@ const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product'
 
 const LABELS = {
   fr: {
+    title: 'Scanner un produit',
     placeholder: 'Code-barres (ex. 063211311051)',
     searchBtn: 'Rechercher',
     loading: 'Chargement…',
     notFound: 'Produit introuvable.',
     networkError: 'Erreur réseau. Vérifiez votre connexion.',
+    unknownProduct: 'Produit sans nom',
     ingredients: 'Ingrédients',
     declaredAllergens: 'Allergènes déclarés',
     unavailable: 'Non disponible',
@@ -19,11 +21,13 @@ const LABELS = {
     alertPrefix: 'Allergènes détectés :',
   },
   en: {
+    title: 'Scan a product',
     placeholder: 'Barcode (e.g. 063211311051)',
     searchBtn: 'Search',
     loading: 'Loading…',
     notFound: 'Product not found.',
     networkError: 'Network error. Check your connection.',
+    unknownProduct: 'Unknown product',
     ingredients: 'Ingredients',
     declaredAllergens: 'Declared allergens',
     unavailable: 'Not available',
@@ -74,7 +78,7 @@ function BarcodeInput({ allergens, lang }) {
     }
   }
 
-  const productName = product?.product_name_fr || product?.product_name || '—'
+  const productName = product?.product_name_fr || product?.product_name || t.unknownProduct
   const ingredientsText = product?.ingredients_text || null
   const allergenTags = product?.allergens_tags ?? []
 
@@ -87,6 +91,7 @@ function BarcodeInput({ allergens, lang }) {
 
   return (
     <section className="barcode-section">
+      <h2 className="profile-title">{t.title}</h2>
       <form className="barcode-form" onSubmit={handleSubmit}>
         <input
           className="barcode-input"
