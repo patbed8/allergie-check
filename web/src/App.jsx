@@ -18,7 +18,7 @@ function App() {
           addAllergen={addAllergen}
           removeAllergen={removeAllergen}
         />
-        <BarcodeInput />
+        <BarcodeInput allergens={allergens} />
       </main>
     </div>
   )

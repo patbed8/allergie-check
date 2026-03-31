@@ -182,6 +182,26 @@ body {
   color: #dc2626;
 }
 
+/* --- Detection banner --- */
+.detection-banner {
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.detection-banner.safe {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.detection-banner.alert {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
 /* --- Product result --- */
 .product-result {
   display: flex;

@@ -1,5 +1,6 @@
 // src/components/BarcodeInput.jsx
 import { useState } from 'react'
+import { detectAllergens } from '../utils/allergenDetection'
 
 const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product'
 
@@ -8,7 +9,7 @@ function formatAllergenTag(tag) {
   return tag.replace(/^[a-z]{2}:/, '')
 }
 
-function BarcodeInput() {
+function BarcodeInput({ allergens }) {
   const [barcode, setBarcode] = useState('')
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
@@ -42,12 +43,16 @@ function BarcodeInput() {
     }
   }
 
-  const productName =
-    product?.product_name_fr || product?.product_name || '—'
-
+  const productName = product?.product_name_fr || product?.product_name || '—'
   const ingredientsText = product?.ingredients_text || null
-
   const allergenTags = product?.allergens_tags ?? []
+
+  const detectedAllergens = product && allergens?.length > 0
+    ? detectAllergens(allergens, ingredientsText, allergenTags)
+    : []
+
+  const showResult = product && allergens?.length > 0
+  const isSafe = showResult && detectedAllergens.length === 0
 
   return (
     <section className="barcode-section">
@@ -57,7 +62,7 @@ function BarcodeInput() {
           type="text"
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
-          placeholder="Code-barres / Barcode (ex. 059749979452)"
+          placeholder="Code-barres / Barcode (ex. 063211311051)"
           inputMode="numeric"
           aria-label="Code-barres / Barcode"
         />
@@ -77,6 +82,19 @@ function BarcodeInput() {
       {product && (
         <div className="product-result">
           <h2 className="product-name">{productName}</h2>
+
+          {showResult && (
+            <div className={`detection-banner ${isSafe ? 'safe' : 'alert'}`}>
+              {isSafe ? (
+                <span>✓ Aucun allergène détecté. / No allergens detected.</span>
+              ) : (
+                <span>
+                  ✕ Allergènes détectés / Allergens detected :{' '}
+                  <strong>{detectedAllergens.join(', ')}</strong>
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="product-section">
             <h3>Ingrédients / Ingredients</h3>
