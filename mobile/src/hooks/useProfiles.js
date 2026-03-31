@@ -1,0 +1,65 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useState, useEffect } from 'react'
+
+const STORAGE_KEY = 'allergie-check-profiles'
+
+function makeId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2)
+}
+
+function defaultProfiles() {
+  return [{ id: makeId(), name: 'Moi', allergens: [] }]
+}
+
+export function useProfiles() {
+  const [profiles, setProfiles] = useState([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY).then(json => {
+      try {
+        const stored = json !== null ? JSON.parse(json) : null
+        setProfiles(Array.isArray(stored) && stored.length > 0 ? stored : defaultProfiles())
+      } catch {
+        setProfiles(defaultProfiles())
+      } finally {
+        setLoaded(true)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!loaded) return
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profiles))
+  }, [profiles, loaded])
+
+  function addProfile(name) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setProfiles(prev => [...prev, { id: makeId(), name: trimmed, allergens: [] }])
+  }
+
+  function removeProfile(id) {
+    setProfiles(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev)
+  }
+
+  function addAllergen(profileId, allergen) {
+    const trimmed = allergen.trim().toLowerCase()
+    if (!trimmed) return
+    setProfiles(prev => prev.map(p =>
+      p.id === profileId && !p.allergens.includes(trimmed)
+        ? { ...p, allergens: [...p.allergens, trimmed] }
+        : p
+    ))
+  }
+
+  function removeAllergen(profileId, allergen) {
+    setProfiles(prev => prev.map(p =>
+      p.id === profileId
+        ? { ...p, allergens: p.allergens.filter(a => a !== allergen) }
+        : p
+    ))
+  }
+
+  return { profiles, addProfile, removeProfile, addAllergen, removeAllergen, loaded }
+}
