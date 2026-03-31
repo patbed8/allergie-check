@@ -37,22 +37,38 @@ function getKeywords(allergen) {
 }
 
 /**
- * Detects which allergens from the user profile are present in the product.
- * Checks both the ingredients text and the declared allergen tags.
+ * Detects which allergens from a single profile are present in the product.
  *
- * @param {string[]} profileAllergens - allergen names from user profile
- * @param {string|null} ingredientsText - raw ingredients text from OFF
- * @param {string[]} allergenTags - allergen tags array from OFF (e.g. ["en:gluten"])
- * @returns {string[]} - subset of profileAllergens that were detected
+ * @param {string[]} profileAllergens - allergen names from one profile
+ * @param {string} text - lowercased ingredients text
+ * @param {string[]} tags - normalized allergen tags
+ * @returns {string[]} - detected allergen names
  */
-export function detectAllergens(profileAllergens, ingredientsText, allergenTags) {
-  const text = (ingredientsText || '').toLowerCase()
-  const tags = (allergenTags || []).map(t => t.replace(/^[a-z]{2}:/, '').toLowerCase())
-
+function detectAllergens(profileAllergens, text, tags) {
   return profileAllergens.filter(allergen => {
     const keywords = getKeywords(allergen)
     const inIngredients = keywords.some(kw => text.includes(kw))
     const inTags = tags.some(tag => keywords.some(kw => tag.includes(kw) || kw.includes(tag)))
     return inIngredients || inTags
   })
+}
+
+/**
+ * Runs detection across all profiles simultaneously.
+ *
+ * @param {{ id: string, name: string, allergens: string[] }[]} profiles
+ * @param {string|null} ingredientsText - raw ingredients text from OFF
+ * @param {string[]} allergenTags - allergen tags array from OFF (e.g. ["en:gluten"])
+ * @returns {{ profileName: string, detected: string[] }[]} - only profiles with detections
+ */
+export function detectAllProfiles(profiles, ingredientsText, allergenTags) {
+  const text = (ingredientsText || '').toLowerCase()
+  const tags = (allergenTags || []).map(t => t.replace(/^[a-z]{2}:/, '').toLowerCase())
+
+  return profiles
+    .map(profile => ({
+      profileName: profile.name,
+      detected: detectAllergens(profile.allergens, text, tags),
+    }))
+    .filter(result => result.detected.length > 0)
 }

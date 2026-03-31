@@ -1,6 +1,6 @@
 // src/components/BarcodeInput.jsx
 import { useState } from 'react'
-import { detectAllergens } from '../utils/allergenDetection'
+import { detectAllProfiles } from '../utils/allergenDetection'
 
 const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product'
 
@@ -18,7 +18,7 @@ const LABELS = {
     unavailable: 'Non disponible',
     none: 'Aucun',
     safe: 'Aucun allergène détecté.',
-    alertPrefix: 'Allergènes détectés :',
+    alertTitle: 'Allergènes détectés',
   },
   en: {
     title: 'Scan a product',
@@ -33,16 +33,15 @@ const LABELS = {
     unavailable: 'Not available',
     none: 'None',
     safe: 'No allergens detected.',
-    alertPrefix: 'Allergens detected:',
+    alertTitle: 'Allergens detected',
   },
 }
 
 function formatAllergenTag(tag) {
-  // Remove language prefix (e.g. "en:gluten" → "gluten")
   return tag.replace(/^[a-z]{2}:/, '')
 }
 
-function BarcodeInput({ allergens, lang }) {
+function BarcodeInput({ profiles, lang }) {
   const [barcode, setBarcode] = useState('')
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
@@ -82,22 +81,24 @@ function BarcodeInput({ allergens, lang }) {
   const ingredientsText = product?.ingredients_text || null
   const allergenTags = product?.allergens_tags ?? []
 
-  const detectedAllergens = product && allergens?.length > 0
-    ? detectAllergens(allergens, ingredientsText, allergenTags)
+  const profilesWithAllergens = (profiles || []).filter(p => p.allergens.length > 0)
+  const detectionResults = product && profilesWithAllergens.length > 0
+    ? detectAllProfiles(profilesWithAllergens, ingredientsText, allergenTags)
     : []
 
-  const showResult = product && allergens?.length > 0
-  const isSafe = showResult && detectedAllergens.length === 0
+  const showBanner = product && profilesWithAllergens.length > 0
+  const isSafe = showBanner && detectionResults.length === 0
 
   return (
-    <section className="barcode-section">
-      <h2 className="profile-title">{t.title}</h2>
+    <div className="page">
+      <h2 className="section-title">{t.title}</h2>
+
       <form className="barcode-form" onSubmit={handleSubmit}>
         <input
           className="barcode-input"
           type="text"
           value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
+          onChange={e => setBarcode(e.target.value)}
           placeholder={t.placeholder}
           inputMode="numeric"
           aria-label={t.placeholder}
@@ -107,26 +108,28 @@ function BarcodeInput({ allergens, lang }) {
         </button>
       </form>
 
-      {loading && (
-        <p className="status-message">{t.loading}</p>
-      )}
-
-      {error && (
-        <p className="status-message error">{error}</p>
-      )}
+      {loading && <p className="status-message">{t.loading}</p>}
+      {error && <p className="status-message error">{error}</p>}
 
       {product && (
         <div className="product-result">
           <h2 className="product-name">{productName}</h2>
 
-          {showResult && (
+          {showBanner && (
             <div className={`detection-banner ${isSafe ? 'safe' : 'alert'}`}>
               {isSafe ? (
                 <span>✓ {t.safe}</span>
               ) : (
-                <span>
-                  ✕ {t.alertPrefix} <strong>{detectedAllergens.join(', ')}</strong>
-                </span>
+                <div className="detection-details">
+                  <span className="detection-alert-title">✕ {t.alertTitle}</span>
+                  <ul className="detection-list">
+                    {detectionResults.map(({ profileName, detected }) => (
+                      <li key={profileName}>
+                        <strong>{profileName} :</strong> {detected.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           )}
@@ -144,7 +147,7 @@ function BarcodeInput({ allergens, lang }) {
             <h3>{t.declaredAllergens}</h3>
             {allergenTags.length > 0 ? (
               <ul className="allergen-list">
-                {allergenTags.map((tag) => (
+                {allergenTags.map(tag => (
                   <li key={tag} className="allergen-tag">
                     {formatAllergenTag(tag)}
                   </li>
@@ -156,7 +159,7 @@ function BarcodeInput({ allergens, lang }) {
           </div>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
