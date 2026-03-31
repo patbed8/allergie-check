@@ -1,8 +1,26 @@
 // src/components/AllergyProfile.jsx
 import { useState } from 'react'
 
-function AllergyProfile({ allergens, addAllergen, removeAllergen }) {
+const LABELS = {
+  fr: {
+    title: 'Mon profil',
+    placeholder: 'Ex. arachides, gluten, lactose…',
+    addBtn: 'Ajouter',
+    empty: 'Aucun allergène configuré.',
+    removeAriaPrefix: 'Supprimer',
+  },
+  en: {
+    title: 'My profile',
+    placeholder: 'E.g. peanuts, gluten, lactose…',
+    addBtn: 'Add',
+    empty: 'No allergens configured.',
+    removeAriaPrefix: 'Remove',
+  },
+}
+
+function AllergyProfile({ allergens, addAllergen, removeAllergen, lang }) {
   const [input, setInput] = useState('')
+  const t = LABELS[lang]
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -12,7 +30,7 @@ function AllergyProfile({ allergens, addAllergen, removeAllergen }) {
 
   return (
     <section className="profile-section">
-      <h2 className="profile-title">Mon profil / My profile</h2>
+      <h2 className="profile-title">{t.title}</h2>
 
       <form className="profile-form" onSubmit={handleSubmit}>
         <input
@@ -20,18 +38,16 @@ function AllergyProfile({ allergens, addAllergen, removeAllergen }) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ex. arachides, gluten, lactose…"
-          aria-label="Ajouter un allergène / Add an allergen"
+          placeholder={t.placeholder}
+          aria-label={t.title}
         />
         <button className="profile-btn" type="submit">
-          Ajouter / Add
+          {t.addBtn}
         </button>
       </form>
 
       {allergens.length === 0 ? (
-        <p className="unavailable">
-          Aucun allergène configuré. / No allergens configured.
-        </p>
+        <p className="unavailable">{t.empty}</p>
       ) : (
         <ul className="allergen-chips">
           {allergens.map((allergen) => (
@@ -40,7 +56,7 @@ function AllergyProfile({ allergens, addAllergen, removeAllergen }) {
               <button
                 className="chip-remove"
                 onClick={() => removeAllergen(allergen)}
-                aria-label={`Supprimer ${allergen} / Remove ${allergen}`}
+                aria-label={`${t.removeAriaPrefix} ${allergen}`}
               >
                 ×
               </button>

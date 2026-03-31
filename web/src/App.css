@@ -22,12 +22,32 @@ body {
   background: #2563eb;
   color: #fff;
   padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .app-header h1 {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+.lang-toggle {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: background 0.15s;
+}
+
+.lang-toggle:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .app-main {

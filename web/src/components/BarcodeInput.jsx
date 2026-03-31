@@ -4,16 +4,47 @@ import { detectAllergens } from '../utils/allergenDetection'
 
 const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product'
 
+const LABELS = {
+  fr: {
+    placeholder: 'Code-barres (ex. 063211311051)',
+    searchBtn: 'Rechercher',
+    loading: 'Chargement…',
+    notFound: 'Produit introuvable.',
+    networkError: 'Erreur réseau. Vérifiez votre connexion.',
+    ingredients: 'Ingrédients',
+    declaredAllergens: 'Allergènes déclarés',
+    unavailable: 'Non disponible',
+    none: 'Aucun',
+    safe: 'Aucun allergène détecté.',
+    alertPrefix: 'Allergènes détectés :',
+  },
+  en: {
+    placeholder: 'Barcode (e.g. 063211311051)',
+    searchBtn: 'Search',
+    loading: 'Loading…',
+    notFound: 'Product not found.',
+    networkError: 'Network error. Check your connection.',
+    ingredients: 'Ingredients',
+    declaredAllergens: 'Declared allergens',
+    unavailable: 'Not available',
+    none: 'None',
+    safe: 'No allergens detected.',
+    alertPrefix: 'Allergens detected:',
+  },
+}
+
 function formatAllergenTag(tag) {
   // Remove language prefix (e.g. "en:gluten" → "gluten")
   return tag.replace(/^[a-z]{2}:/, '')
 }
 
-function BarcodeInput({ allergens }) {
+function BarcodeInput({ allergens, lang }) {
   const [barcode, setBarcode] = useState('')
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  const t = LABELS[lang]
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -32,12 +63,12 @@ function BarcodeInput({ allergens }) {
       const data = await res.json()
 
       if (data.status === 0) {
-        setError('Produit introuvable. / Product not found.')
+        setError(t.notFound)
       } else {
         setProduct(data.product)
       }
     } catch {
-      setError('Erreur réseau. Vérifiez votre connexion. / Network error. Check your connection.')
+      setError(t.networkError)
     } finally {
       setLoading(false)
     }
@@ -62,17 +93,17 @@ function BarcodeInput({ allergens }) {
           type="text"
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
-          placeholder="Code-barres / Barcode (ex. 063211311051)"
+          placeholder={t.placeholder}
           inputMode="numeric"
-          aria-label="Code-barres / Barcode"
+          aria-label={t.placeholder}
         />
         <button className="barcode-btn" type="submit" disabled={loading}>
-          Rechercher / Search
+          {t.searchBtn}
         </button>
       </form>
 
       {loading && (
-        <p className="status-message">Chargement… / Loading…</p>
+        <p className="status-message">{t.loading}</p>
       )}
 
       {error && (
@@ -86,27 +117,26 @@ function BarcodeInput({ allergens }) {
           {showResult && (
             <div className={`detection-banner ${isSafe ? 'safe' : 'alert'}`}>
               {isSafe ? (
-                <span>✓ Aucun allergène détecté. / No allergens detected.</span>
+                <span>✓ {t.safe}</span>
               ) : (
                 <span>
-                  ✕ Allergènes détectés / Allergens detected :{' '}
-                  <strong>{detectedAllergens.join(', ')}</strong>
+                  ✕ {t.alertPrefix} <strong>{detectedAllergens.join(', ')}</strong>
                 </span>
               )}
             </div>
           )}
 
           <div className="product-section">
-            <h3>Ingrédients / Ingredients</h3>
+            <h3>{t.ingredients}</h3>
             {ingredientsText ? (
               <p className="ingredients-text">{ingredientsText}</p>
             ) : (
-              <p className="unavailable">Non disponible / Not available</p>
+              <p className="unavailable">{t.unavailable}</p>
             )}
           </div>
 
           <div className="product-section">
-            <h3>Allergènes déclarés / Declared allergens</h3>
+            <h3>{t.declaredAllergens}</h3>
             {allergenTags.length > 0 ? (
               <ul className="allergen-list">
                 {allergenTags.map((tag) => (
@@ -116,7 +146,7 @@ function BarcodeInput({ allergens }) {
                 ))}
               </ul>
             ) : (
-              <p className="unavailable">Aucun / None</p>
+              <p className="unavailable">{t.none}</p>
             )}
           </div>
         </div>
