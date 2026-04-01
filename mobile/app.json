@@ -14,8 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.patbed8.allergiecheck",
-      "deploymentTarget": "15.5"
+      "bundleIdentifier": "com.patbed8.allergiecheck"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +28,14 @@
     },
     "plugins": [
       "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.5"
+          }
+        }
+      ],
       [
         "expo-camera",
         {
