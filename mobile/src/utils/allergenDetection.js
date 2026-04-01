@@ -37,6 +37,12 @@ export function getAllergenSynonyms(allergen) {
   return getKeywords(allergen)
 }
 
+function removeFreeOfClaims(text) {
+  let cleaned = text.replace(/\b\w+[-\s]free\s+\w+/gi, '')
+  cleaned = cleaned.replace(/\bfree\s+of\s+\w+/gi, '')
+  return cleaned
+}
+
 function detectAllergens(list, text, tags) {
   return (list || []).filter(allergen => {
     const keywords = getKeywords(allergen)
@@ -54,7 +60,7 @@ function detectAllergens(list, text, tags) {
  *   Only profiles with at least one detection.
  */
 export function detectAllProfiles(profiles, ingredientsText, allergenTags) {
-  const text = (ingredientsText || '').toLowerCase()
+  const text = removeFreeOfClaims((ingredientsText || '').toLowerCase())
   const tags = (allergenTags || []).map(t => t.replace(/^[a-z]{2}:/, '').toLowerCase())
 
   return profiles
