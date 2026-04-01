@@ -38,25 +38,27 @@ export async function analyzeWithAppleIntelligence(ingredientsText, profiles) {
     .join(', ')
 
   const session = new AppleLLMSession()
-  await session.configure({
-    instructions:
-      'You are a food allergen detection assistant. ' +
-      'You receive an ingredient list and a list of allergens to look for. ' +
-      'Reply only with a JSON array of detected allergen names from the provided list. ' +
-      'If nothing is detected, reply with an empty array []. No explanation, no markdown.',
-  })
-
-  const response = await session.generateText({
-    prompt: `Allergens to look for: ${allergenList}\n\nIngredient list:\n${ingredientsText}`,
-  })
-
-  session.dispose()
-
   try {
-    const parsed = JSON.parse(response)
-    return Array.isArray(parsed) ? parsed.map(String) : []
-  } catch {
-    return []
+    await session.configure({
+      instructions:
+        'You are a food allergen detection assistant. ' +
+        'You receive an ingredient list and a list of allergens to look for. ' +
+        'Reply only with a JSON array of detected allergen names from the provided list. ' +
+        'If nothing is detected, reply with an empty array []. No explanation, no markdown.',
+    })
+
+    const response = await session.generateText({
+      prompt: `Allergens to look for: ${allergenList}\n\nIngredient list:\n${ingredientsText}`,
+    })
+
+    try {
+      const parsed = JSON.parse(response)
+      return Array.isArray(parsed) ? parsed.map(String) : []
+    } catch {
+      return []
+    }
+  } finally {
+    session.dispose()
   }
 }
 

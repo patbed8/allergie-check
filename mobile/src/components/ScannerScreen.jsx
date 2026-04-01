@@ -307,7 +307,10 @@ export default function ScannerScreen({ profiles, lang }) {
     setOcrText(null)
 
     try {
-      const res = await fetch(`${OFF_API_URL}/${normalized}.json`)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const res = await fetch(`${OFF_API_URL}/${normalized}.json`, { signal: controller.signal })
+      clearTimeout(timeout)
       const json = await res.json()
       if (json.status === 0) {
         setError(t.notFound)
@@ -325,6 +328,7 @@ export default function ScannerScreen({ profiles, lang }) {
   // ── OCR flow ─────────────────────────────────────────────────────────────────
 
   async function handleStartOCR() {
+    if (isProcessing) return
     clearOcrError()
     setScanMode('ocr')
     setError(null)

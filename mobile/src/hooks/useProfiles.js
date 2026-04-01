@@ -80,11 +80,11 @@ export function useProfiles() {
   function addAllergy(profileId, allergen) {
     const trimmed = allergen.trim().toLowerCase()
     if (!trimmed) return
-    setProfiles(prev => prev.map(p =>
-      p.id === profileId && !p.allergies.includes(trimmed)
-        ? { ...p, allergies: [...p.allergies, trimmed] }
-        : p
-    ))
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== profileId) return p
+      if (p.allergies.some(a => a.toLowerCase() === trimmed)) return p
+      return { ...p, allergies: [...p.allergies, trimmed] }
+    }))
   }
 
   function removeAllergy(profileId, allergen) {
@@ -98,11 +98,11 @@ export function useProfiles() {
   function addIntolerance(profileId, allergen) {
     const trimmed = allergen.trim().toLowerCase()
     if (!trimmed) return
-    setProfiles(prev => prev.map(p =>
-      p.id === profileId && !p.intolerances.includes(trimmed)
-        ? { ...p, intolerances: [...p.intolerances, trimmed] }
-        : p
-    ))
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== profileId) return p
+      if (p.intolerances.some(a => a.toLowerCase() === trimmed)) return p
+      return { ...p, intolerances: [...p.intolerances, trimmed] }
+    }))
   }
 
   function removeIntolerance(profileId, allergen) {

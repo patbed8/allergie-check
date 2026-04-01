@@ -2,7 +2,7 @@
 
 **Date :** 2026-04-01
 **Phase en cours :** Phase 4A — Build natif + OCR ML Kit + IA on-device + Supabase
-**Statut :** Phase complétée
+**Statut :** En cours
 
 ---
 
