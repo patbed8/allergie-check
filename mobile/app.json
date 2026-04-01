@@ -37,6 +37,10 @@
         }
       ],
       [
+        "./plugins/withPodfileDeploymentTarget",
+        { "deploymentTarget": "15.5" }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Allergie Check needs camera access to scan barcodes."
