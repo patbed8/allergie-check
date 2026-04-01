@@ -44,6 +44,7 @@ const LABELS = {
     alertAllergies: 'Allergies détectées',
     alertIntolerances: 'Intolérances détectées',
     scanAgain: 'Scanner à nouveau',
+    backHome: 'Retour',
     permissionTitle: 'Permission caméra requise',
     permissionMessage: 'Allergie Check a besoin d\'accès à votre caméra pour scanner les codes-barres.',
     permissionBtn: 'Autoriser la caméra',
@@ -67,6 +68,7 @@ const LABELS = {
     alertAllergies: 'Allergies detected',
     alertIntolerances: 'Intolerances detected',
     scanAgain: 'Scan again',
+    backHome: 'Back',
     permissionTitle: 'Camera permission required',
     permissionMessage: 'Allergie Check needs camera access to scan barcodes.',
     permissionBtn: 'Allow camera',
@@ -129,7 +131,7 @@ function DetectionBanner({ results, isSafe, t }) {
   )
 }
 
-function ProductResult({ product, profiles, t, lang, onScanAgain }) {
+function ProductResult({ product, profiles, t, lang, onScanAgain, onBack }) {
   const productName = product?.product_name_fr || product?.product_name || t.unknownProduct
   const ingredientsText = product?.ingredients_text || null
   const allergenTags = product?.allergens_tags ?? []
@@ -174,10 +176,16 @@ function ProductResult({ product, profiles, t, lang, onScanAgain }) {
         )}
       </View>
 
-      <TouchableOpacity style={styles.primaryBtn} onPress={onScanAgain}>
-        <Ionicons name="camera-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-        <Text style={styles.primaryBtnText}>{t.scanAgain}</Text>
-      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={onBack}>
+          <Ionicons name="arrow-back" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+          <Text style={styles.secondaryBtnText}>{t.backHome}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={onScanAgain}>
+          <Ionicons name="camera-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+          <Text style={styles.primaryBtnText}>{t.scanAgain}</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   )
 }
@@ -233,6 +241,14 @@ export default function ScannerScreen({ profiles, lang }) {
     setProduct(null)
     setError(null)
     setCameraActive(true)
+  }
+
+  function handleGoHome() {
+    scanLock.current = false
+    setScanned(false)
+    setProduct(null)
+    setError(null)
+    setCameraActive(false)
   }
 
   function handleStartScan() {
@@ -312,6 +328,7 @@ export default function ScannerScreen({ profiles, lang }) {
             t={t}
             lang={lang}
             onScanAgain={handleScanAgain}
+            onBack={handleGoHome}
           />
         )}
       </SafeAreaView>
@@ -592,6 +609,26 @@ const styles = StyleSheet.create({
   allergenChipText: {
     fontSize: 13,
     color: '#713f12',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
   },
   permissionContainer: {
     flex: 1,
