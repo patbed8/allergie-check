@@ -5,7 +5,6 @@ import { detectAllProfiles } from '../utils/allergenDetection'
 import {
   getOnDeviceAIProvider,
   analyzeWithAppleIntelligence,
-  analyzeWithGeminiNano,
   mergeWithAIFindings,
 } from '../utils/onDeviceAI'
 
@@ -101,8 +100,6 @@ export function useOCR() {
             let aiDetected = []
             if (aiProvider === 'apple') {
               aiDetected = await analyzeWithAppleIntelligence(text, activeProfiles)
-            } else if (aiProvider === 'gemini') {
-              aiDetected = await analyzeWithGeminiNano(text, activeProfiles)
             }
             if (aiDetected.length > 0) {
               mergedResults = mergeWithAIFindings(keywordResults, aiDetected, activeProfiles)

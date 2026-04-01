@@ -6,7 +6,7 @@
 
 /**
  * Returns the available on-device AI provider for the current device.
- * @returns {Promise<'apple' | 'gemini' | 'none'>}
+ * @returns {Promise<'apple' | 'none'>}
  */
 export async function getOnDeviceAIProvider() {
   // iOS: Apple Intelligence Foundation Models (iOS 26+, iPhone 15 Pro / 16 series)
@@ -16,13 +16,8 @@ export async function getOnDeviceAIProvider() {
     if (status === 'available') return 'apple'
   } catch (_) {}
 
-  // Android: Gemini Nano via AICore (Pixel 6+, Samsung S22+, Android 10+)
-  // NOTE: install the package when available — npm i rn-on-device-ai
-  try {
-    const { OnDeviceAI } = require('rn-on-device-ai')
-    const available = await OnDeviceAI.isAvailable()
-    if (available) return 'gemini'
-  } catch (_) {}
+  // Android: Gemini Nano — add when a stable npm package is available
+  // (rn-on-device-ai does not exist on npm as of 2026-04-01)
 
   return 'none'
 }
@@ -65,36 +60,6 @@ export async function analyzeWithAppleIntelligence(ingredientsText, profiles) {
   }
 }
 
-/**
- * Analyze an ingredient text with Gemini Nano (Android).
- * Returns an array of detected allergen name strings.
- * @param {string} ingredientsText
- * @param {Array<{allergies: string[], intolerances: string[]}>} profiles
- * @returns {Promise<string[]>}
- */
-export async function analyzeWithGeminiNano(ingredientsText, profiles) {
-  const { OnDeviceAI } = require('rn-on-device-ai')
-
-  const allergenList = profiles
-    .flatMap(p => [...(p.allergies || []), ...(p.intolerances || [])])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .join(', ')
-
-  const result = await OnDeviceAI.generateText({
-    prompt:
-      `Allergens to look for: ${allergenList}\n\n` +
-      `Ingredient list:\n${ingredientsText}\n\n` +
-      'Reply only with a JSON array of detected allergen names from the list above. ' +
-      'If nothing detected, reply [].',
-  })
-
-  try {
-    const parsed = JSON.parse(result)
-    return Array.isArray(parsed) ? parsed.map(String) : []
-  } catch {
-    return []
-  }
-}
 
 /**
  * Merges keyword-detection results with AI-detected allergens.
