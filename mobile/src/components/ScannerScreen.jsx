@@ -12,6 +12,12 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { Ionicons } from '@expo/vector-icons'
 import { detectAllProfiles } from '../utils/allergenDetection'
 import { useRecentScans } from '../hooks/useRecentScans'
+import { useOCR } from '../hooks/useOCR'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+// ocrAnalysis: null | { results: MergedResult[], aiProvider: 'apple'|'gemini'|'none' }
+// MergedResult: { profileName, detectedAllergies, detectedIntolerances,
+//                 aiOnlyAllergies, aiOnlyIntolerances }
 
 const COLORS = {
   safe: '#22c55e',
@@ -31,18 +37,27 @@ const LABELS = {
   fr: {
     scanPrompt: 'Appuyez pour scanner',
     scanBtn: 'Scanner un produit',
+    ocrBtn: 'Photographier l\'étiquette',
     cancel: 'Annuler',
+    retry: 'Réessayer',
     loading: 'Analyse en cours…',
+    ocrLoading: 'Lecture de l\'étiquette…',
     notFound: 'Produit introuvable.',
     networkError: 'Erreur réseau. Vérifiez votre connexion.',
     unknownProduct: 'Produit sans nom',
+    ocrProductName: 'Produit scanné',
     ingredients: 'Ingrédients',
     declaredAllergens: 'Allergènes déclarés',
+    ocrExtractedText: 'Texte extrait',
+    ocrTextHide: 'Masquer',
+    ocrTextShow: 'Afficher',
     unavailable: 'Non disponible',
     none: 'Aucun',
     safe: 'Aucun allergène détecté.',
     alertAllergies: 'Allergies détectées',
     alertIntolerances: 'Intolérances détectées',
+    alertAIAllergies: 'Allergies détectées (IA)',
+    alertAIIntolerances: 'Intolérances détectées (IA)',
     scanAgain: 'Scanner à nouveau',
     backHome: 'Retour',
     permissionTitle: 'Permission caméra requise',
@@ -51,22 +66,36 @@ const LABELS = {
     recentTitle: 'Produits récents',
     today: 'Aujourd\'hui',
     yesterday: 'Hier',
+    ocrError_permission_denied: 'Accès à la caméra refusé. Autorisez l\'accès dans les réglages.',
+    ocrError_empty_text: 'Aucun texte détecté sur l\'image. Essayez avec une meilleure photo.',
+    ocrError_ocr_failed: 'Échec de la lecture. Essayez à nouveau.',
+    ocrSourceLabel: 'OCR',
+    barcodeSourceLabel: 'Code-barres',
   },
   en: {
     scanPrompt: 'Tap to scan',
     scanBtn: 'Scan a product',
+    ocrBtn: 'Photograph a label',
     cancel: 'Cancel',
+    retry: 'Try again',
     loading: 'Scanning...',
+    ocrLoading: 'Reading label...',
     notFound: 'Product not found.',
     networkError: 'Network error. Check your connection.',
     unknownProduct: 'Unknown product',
+    ocrProductName: 'Scanned product',
     ingredients: 'Ingredients',
     declaredAllergens: 'Declared allergens',
+    ocrExtractedText: 'Extracted text',
+    ocrTextHide: 'Hide',
+    ocrTextShow: 'Show',
     unavailable: 'Not available',
     none: 'None',
     safe: 'No allergens detected.',
     alertAllergies: 'Allergies detected',
     alertIntolerances: 'Intolerances detected',
+    alertAIAllergies: 'Allergies detected (AI)',
+    alertAIIntolerances: 'Intolerances detected (AI)',
     scanAgain: 'Scan again',
     backHome: 'Back',
     permissionTitle: 'Camera permission required',
@@ -75,6 +104,11 @@ const LABELS = {
     recentTitle: 'Recent products',
     today: 'Today',
     yesterday: 'Yesterday',
+    ocrError_permission_denied: 'Camera access denied. Allow access in Settings.',
+    ocrError_empty_text: 'No text detected in the image. Try a clearer photo.',
+    ocrError_ocr_failed: 'Reading failed. Please try again.',
+    ocrSourceLabel: 'OCR',
+    barcodeSourceLabel: 'Barcode',
   },
 }
 
@@ -108,7 +142,13 @@ function DetectionBanner({ results, isSafe, t }) {
 
   return (
     <View style={[styles.banner, styles.bannerDanger]}>
-      {results.map(({ profileName, detectedAllergies, detectedIntolerances }) => (
+      {results.map(({
+        profileName,
+        detectedAllergies,
+        detectedIntolerances,
+        aiOnlyAllergies = [],
+        aiOnlyIntolerances = [],
+      }) => (
         <View key={profileName} style={styles.bannerProfile}>
           <Text style={styles.bannerProfileName}>{profileName}</Text>
           {detectedAllergies.length > 0 && (
@@ -125,24 +165,69 @@ function DetectionBanner({ results, isSafe, t }) {
               <Text style={styles.bannerGroupItems}>{detectedIntolerances.join(', ')}</Text>
             </View>
           )}
+          {aiOnlyAllergies.length > 0 && (
+            <View style={styles.bannerGroup}>
+              <Text style={styles.bannerGroupLabel}>🤖 {t.alertAIAllergies}</Text>
+              <Text style={styles.bannerGroupItems}>{aiOnlyAllergies.join(', ')}</Text>
+            </View>
+          )}
+          {aiOnlyIntolerances.length > 0 && (
+            <View style={styles.bannerGroup}>
+              <Text style={[styles.bannerGroupLabel, styles.bannerGroupLabelWarning]}>
+                🤖 {t.alertAIIntolerances}
+              </Text>
+              <Text style={styles.bannerGroupItems}>{aiOnlyIntolerances.join(', ')}</Text>
+            </View>
+          )}
         </View>
       ))}
     </View>
   )
 }
 
-function ProductResult({ product, profiles, t, lang, onScanAgain, onBack }) {
+// Collapsible section showing the raw OCR text (OCR mode only)
+function OCRTextSection({ ocrText, t }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!ocrText) return null
+
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.ocrTextHeader}
+        onPress={() => setExpanded(v => !v)}
+      >
+        <Text style={styles.sectionTitle}>{t.ocrExtractedText}</Text>
+        <Text style={styles.ocrTextToggle}>
+          {expanded ? t.ocrTextHide : t.ocrTextShow}
+        </Text>
+      </TouchableOpacity>
+      {expanded && (
+        <Text style={styles.ocrRawText}>{ocrText}</Text>
+      )}
+    </View>
+  )
+}
+
+// precomputedResults is set for OCR scans (already includes AI findings).
+// For barcode scans it is null and detection runs here via detectAllProfiles().
+function ProductResult({ product, profiles, t, lang, onScanAgain, onBack, ocrText, precomputedResults }) {
   const productName = product?.product_name_fr || product?.product_name || t.unknownProduct
   const ingredientsText = product?.ingredients_text || null
   const allergenTags = product?.allergens_tags ?? []
 
-  const profilesWithItems = (profiles || []).filter(
-    p => (p.allergies || []).length > 0 || (p.intolerances || []).length > 0
-  )
-  const detectionResults = profilesWithItems.length > 0
-    ? detectAllProfiles(profilesWithItems, ingredientsText, allergenTags)
-    : []
-  const showBanner = profilesWithItems.length > 0
+  let detectionResults, showBanner
+  if (precomputedResults) {
+    detectionResults = precomputedResults
+    showBanner = true
+  } else {
+    const profilesWithItems = (profiles || []).filter(
+      p => (p.allergies || []).length > 0 || (p.intolerances || []).length > 0
+    )
+    detectionResults = profilesWithItems.length > 0
+      ? detectAllProfiles(profilesWithItems, ingredientsText, allergenTags)
+      : []
+    showBanner = profilesWithItems.length > 0
+  }
   const isSafe = showBanner && detectionResults.length === 0
 
   return (
@@ -161,9 +246,10 @@ function ProductResult({ product, profiles, t, lang, onScanAgain, onBack }) {
         }
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.declaredAllergens}</Text>
-        {allergenTags.length > 0 ? (
+      {/* Declared allergens: shown for barcode mode only (allergenTags not empty) */}
+      {allergenTags.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.declaredAllergens}</Text>
           <View style={styles.chipsRow}>
             {allergenTags.map(tag => (
               <View key={tag} style={styles.allergenChip}>
@@ -171,10 +257,11 @@ function ProductResult({ product, profiles, t, lang, onScanAgain, onBack }) {
               </View>
             ))}
           </View>
-        ) : (
-          <Text style={styles.mutedText}>{t.none}</Text>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Collapsible raw OCR text: shown in OCR mode only */}
+      <OCRTextSection ocrText={ocrText} t={t} />
 
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.secondaryBtn} onPress={onBack}>
@@ -190,36 +277,46 @@ function ProductResult({ product, profiles, t, lang, onScanAgain, onBack }) {
   )
 }
 
+// scanMode: null | 'barcode' | 'ocr'
 export default function ScannerScreen({ profiles, lang }) {
   const [permission, requestPermission] = useCameraPermissions()
-  const [cameraActive, setCameraActive] = useState(false)
+  const [scanMode, setScanMode] = useState(null)
   const [scanned, setScanned] = useState(false)
   const scanLock = useRef(false)
   const [loading, setLoading] = useState(false)
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
+  const [ocrText, setOcrText] = useState(null)
+  const [ocrAnalysis, setOcrAnalysis] = useState(null) // { results, aiProvider }
   const { recentScans, addScan } = useRecentScans()
+  const { isProcessing, error: ocrError, pickImageFromCamera, analyzeLabel, clearError: clearOcrError } = useOCR()
 
   const t = LABELS[lang]
+
+  // ── Barcode flow ─────────────────────────────────────────────────────────────
 
   async function handleBarcodeScanned({ data }) {
     if (scanLock.current) return
     scanLock.current = true
     setScanned(true)
-    setCameraActive(false)
+    setScanMode(null)
     const normalized = data.length === 12 ? '0' + data : data
     setLoading(true)
     setError(null)
     setProduct(null)
+    setOcrText(null)
 
     try {
-      const res = await fetch(`${OFF_API_URL}/${normalized}.json`)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const res = await fetch(`${OFF_API_URL}/${normalized}.json`, { signal: controller.signal })
+      clearTimeout(timeout)
       const json = await res.json()
       if (json.status === 0) {
         setError(t.notFound)
       } else {
         setProduct(json.product)
-        addScan(normalized, json.product)
+        addScan(normalized, json.product, 'barcode')
       }
     } catch {
       setError(t.networkError)
@@ -228,11 +325,55 @@ export default function ScannerScreen({ profiles, lang }) {
     }
   }
 
+  // ── OCR flow ─────────────────────────────────────────────────────────────────
+
+  async function handleStartOCR() {
+    if (isProcessing) return
+    clearOcrError()
+    setScanMode('ocr')
+    setError(null)
+    setOcrText(null)
+    setOcrAnalysis(null)
+    setProduct(null)
+
+    const uri = await pickImageFromCamera()
+    if (!uri) {
+      // User cancelled or permission denied — return to idle
+      setScanMode(null)
+      return
+    }
+
+    // analyzeLabel handles OCR + keyword detection + on-device AI
+    const analysis = await analyzeLabel(uri, profiles)
+    if (!analysis) {
+      // Error already set in hook — scanMode stays 'ocr' to show error UI
+      return
+    }
+
+    const { text, mergedResults, aiProvider } = analysis
+    setOcrText(text)
+    setOcrAnalysis({ results: mergedResults, aiProvider })
+    const ocrProduct = {
+      product_name: t.ocrProductName,
+      product_name_fr: lang === 'fr' ? t.ocrProductName : null,
+      ingredients_text: text,
+      allergens_tags: [],
+    }
+    setProduct(ocrProduct)
+    addScan(`ocr-${Date.now()}`, ocrProduct, 'ocr')
+    setScanned(true)
+    setScanMode(null)
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────────────────
+
   function handleOpenRecentScan(scan) {
     setProduct(scan.productData)
+    setOcrText(null) // raw text not stored in recent scans
     setScanned(true)
     setError(null)
     setLoading(false)
+    setScanMode(null)
   }
 
   function handleScanAgain() {
@@ -240,7 +381,10 @@ export default function ScannerScreen({ profiles, lang }) {
     setScanned(false)
     setProduct(null)
     setError(null)
-    setCameraActive(true)
+    setOcrText(null)
+    setOcrAnalysis(null)
+    clearOcrError()
+    setScanMode('barcode')
   }
 
   function handleGoHome() {
@@ -248,16 +392,21 @@ export default function ScannerScreen({ profiles, lang }) {
     setScanned(false)
     setProduct(null)
     setError(null)
-    setCameraActive(false)
+    setOcrText(null)
+    setOcrAnalysis(null)
+    clearOcrError()
+    setScanMode(null)
   }
 
-  function handleStartScan() {
-    setCameraActive(true)
+  function handleStartBarcodeScan() {
+    setScanMode('barcode')
   }
 
-  function handleCancel() {
-    setCameraActive(false)
+  function handleCancelBarcode() {
+    setScanMode(null)
   }
+
+  // ── Permission gate ───────────────────────────────────────────────────────────
 
   if (permission === null) return null
 
@@ -276,8 +425,9 @@ export default function ScannerScreen({ profiles, lang }) {
     )
   }
 
-  // Camera active
-  if (cameraActive) {
+  // ── Barcode camera ────────────────────────────────────────────────────────────
+
+  if (scanMode === 'barcode') {
     return (
       <View style={styles.fullCamera}>
         <CameraView
@@ -289,7 +439,7 @@ export default function ScannerScreen({ profiles, lang }) {
           <View style={styles.scanFrameContainer}>
             <View style={styles.scanFrame} />
           </View>
-          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelBarcode}>
             <Text style={styles.cancelBtnText}>{t.cancel}</Text>
           </TouchableOpacity>
         </SafeAreaView>
@@ -297,7 +447,46 @@ export default function ScannerScreen({ profiles, lang }) {
     )
   }
 
-  // Loading state
+  // ── OCR processing / error ────────────────────────────────────────────────────
+
+  if (scanMode === 'ocr') {
+    const ocrErrKey = ocrError ? `ocrError_${ocrError}` : null
+    const ocrErrMsg = ocrErrKey && t[ocrErrKey] ? t[ocrErrKey] : (ocrError ? t.ocrError_ocr_failed : null)
+
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          {isProcessing ? (
+            <>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>{t.ocrLoading}</Text>
+              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={handleGoHome}>
+                <Text style={styles.secondaryBtnText}>{t.cancel}</Text>
+              </TouchableOpacity>
+            </>
+          ) : ocrErrMsg ? (
+            <>
+              <Ionicons name="alert-circle-outline" size={48} color={COLORS.danger} />
+              <Text style={styles.errorText}>{ocrErrMsg}</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleStartOCR}>
+                <Ionicons name="refresh-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.primaryBtnText}>{t.retry}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={handleGoHome}>
+                <Text style={styles.secondaryBtnText}>{t.backHome}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Camera launched by handleStartOCR; waiting for user action
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          )}
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  // ── Loading (barcode API) ─────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -309,7 +498,8 @@ export default function ScannerScreen({ profiles, lang }) {
     )
   }
 
-  // Result state (scan or recent scan)
+  // ── Result ────────────────────────────────────────────────────────────────────
+
   if (scanned) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -329,22 +519,29 @@ export default function ScannerScreen({ profiles, lang }) {
             lang={lang}
             onScanAgain={handleScanAgain}
             onBack={handleGoHome}
+            ocrText={ocrText}
+            precomputedResults={ocrAnalysis?.results ?? null}
           />
         )}
       </SafeAreaView>
     )
   }
 
-  // Idle state with recent scans
+  // ── Idle ──────────────────────────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.idleContent}>
         <View style={styles.scanBtnSection}>
           <Ionicons name="barcode-outline" size={72} color={COLORS.muted} />
           <Text style={styles.idleHint}>{t.scanPrompt}</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleStartScan}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleStartBarcodeScan}>
             <Ionicons name="camera-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.primaryBtnText}>{t.scanBtn}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={handleStartOCR}>
+            <Ionicons name="image-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+            <Text style={styles.secondaryBtnText}>{t.ocrBtn}</Text>
           </TouchableOpacity>
         </View>
 
@@ -362,15 +559,26 @@ export default function ScannerScreen({ profiles, lang }) {
                   onPress={() => handleOpenRecentScan(scan)}
                 >
                   <View style={styles.recentItemIcon}>
-                    <Ionicons name="cube-outline" size={20} color={COLORS.primary} />
+                    <Ionicons
+                      name={scan.source === 'ocr' ? 'image-outline' : 'cube-outline'}
+                      size={20}
+                      color={COLORS.primary}
+                    />
                   </View>
                   <View style={styles.recentItemContent}>
                     <Text style={styles.recentItemName} numberOfLines={1}>
                       {scan.productName || t.unknownProduct}
                     </Text>
-                    <Text style={styles.recentItemDate}>
-                      {formatDate(scan.scannedAt, lang)}
-                    </Text>
+                    <View style={styles.recentItemMeta}>
+                      <Text style={styles.recentItemDate}>
+                        {formatDate(scan.scannedAt, lang)}
+                      </Text>
+                      {scan.source === 'ocr' && (
+                        <View style={styles.sourceTag}>
+                          <Text style={styles.sourceTagText}>{t.ocrSourceLabel}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
                 </TouchableOpacity>
@@ -453,6 +661,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  secondaryBtn: {
+    flexDirection: 'row',
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   recentSection: {
     gap: 10,
   },
@@ -499,15 +722,32 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.text,
   },
+  recentItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   recentItemDate: {
     fontSize: 13,
     color: COLORS.muted,
+  },
+  sourceTag: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+  },
+  sourceTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369a1',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    padding: 32,
   },
   loadingText: {
     fontSize: 15,
@@ -610,25 +850,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#713f12',
   },
+  ocrTextHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ocrTextToggle: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  ocrRawText: {
+    fontSize: 13,
+    color: COLORS.text,
+    lineHeight: 19,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 10,
+  },
   actionRow: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 8,
-  },
-  secondaryBtn: {
-    flexDirection: 'row',
-    height: 52,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryBtnText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: '600',
   },
   permissionContainer: {
     flex: 1,

@@ -18,12 +18,14 @@ export function useRecentScans() {
     })
   }, [])
 
-  function addScan(barcode, product) {
+  // source: 'barcode' | 'ocr'
+  function addScan(barcode, product, source = 'barcode') {
     const entry = {
       id: Date.now().toString(36),
       barcode,
       productName: product.product_name_fr || product.product_name || '',
       scannedAt: Date.now(),
+      source,
       // Store only what the result view needs
       productData: {
         product_name: product.product_name,
@@ -33,7 +35,11 @@ export function useRecentScans() {
       },
     }
     setRecentScans(prev => {
-      const updated = [entry, ...prev.filter(s => s.barcode !== barcode)].slice(0, MAX_SCANS)
+      // For barcode scans, deduplicate by barcode. OCR scans are always added as new entries.
+      const filtered = source === 'barcode'
+        ? prev.filter(s => s.barcode !== barcode)
+        : prev
+      const updated = [entry, ...filtered].slice(0, MAX_SCANS)
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
       return updated
     })

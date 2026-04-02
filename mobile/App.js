@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { View, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useProfiles } from './src/hooks/useProfiles'
 import { useLanguage } from './src/hooks/useLanguage'
@@ -27,7 +28,13 @@ export default function App() {
   } = useProfiles()
   const { lang, setLang } = useLanguage()
 
-  if (!loaded) return null
+  if (!loaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    )
+  }
 
   const nav = NAV_LABELS[lang]
 

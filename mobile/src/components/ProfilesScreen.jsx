@@ -8,6 +8,7 @@ import {
   Modal,
   StyleSheet,
   Pressable,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -50,6 +51,12 @@ const LABELS = {
     synonymsSubtitle: 'FR · EN',
     noFamily: 'Aucun membre de la famille.',
     back: 'Retour',
+    deleteConfirmTitle: 'Supprimer',
+    deleteConfirmMessage: 'Voulez-vous vraiment supprimer ce profil ?',
+    deleteConfirmOk: 'Supprimer',
+    deleteConfirmCancel: 'Annuler',
+    items: (n) => `${n} élément(s)`,
+    members: (n) => `${n} membre(s)`,
   },
   en: {
     myProfile: 'My profile',
@@ -73,6 +80,12 @@ const LABELS = {
     synonymsSubtitle: 'FR · EN',
     noFamily: 'No family members.',
     back: 'Back',
+    deleteConfirmTitle: 'Delete',
+    deleteConfirmMessage: 'Are you sure you want to delete this profile?',
+    deleteConfirmOk: 'Delete',
+    deleteConfirmCancel: 'Cancel',
+    items: (n) => `${n} item(s)`,
+    members: (n) => `${n} member(s)`,
   },
 }
 
@@ -282,6 +295,13 @@ function FamilyList({ profiles, lang, onSelectProfile, onAddProfile, onRemovePro
     setAddingNew(false)
   }
 
+  function confirmDelete(profileId) {
+    Alert.alert(t.deleteConfirmTitle, t.deleteConfirmMessage, [
+      { text: t.deleteConfirmCancel, style: 'cancel' },
+      { text: t.deleteConfirmOk, style: 'destructive', onPress: () => onRemoveProfile(profileId) },
+    ])
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.listContent}>
       {profiles.length === 0 && !addingNew && (
@@ -304,11 +324,11 @@ function FamilyList({ profiles, lang, onSelectProfile, onAddProfile, onRemovePro
                 <View style={styles.listItemContent}>
                   <Text style={styles.listItemLabel}>{profile.name}</Text>
                   <Text style={styles.listItemSub}>
-                    {(profile.allergies || []).length + (profile.intolerances || []).length} item(s)
+                    {t.items((profile.allergies || []).length + (profile.intolerances || []).length)}
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => onRemoveProfile(profile.id)}
+                  onPress={() => confirmDelete(profile.id)}
                   style={styles.deleteIconBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
@@ -386,7 +406,7 @@ export default function ProfilesScreen({
               <View style={styles.listItemContent}>
                 <Text style={styles.listItemLabel}>{myProfile?.name || t.myProfile}</Text>
                 <Text style={styles.listItemSub}>
-                  {((myProfile?.allergies || []).length + (myProfile?.intolerances || []).length)} item(s)
+                  {t.items((myProfile?.allergies || []).length + (myProfile?.intolerances || []).length)}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
@@ -401,7 +421,7 @@ export default function ProfilesScreen({
               </View>
               <View style={styles.listItemContent}>
                 <Text style={styles.listItemLabel}>{t.family}</Text>
-                <Text style={styles.listItemSub}>{familyProfiles.length} membre(s)</Text>
+                <Text style={styles.listItemSub}>{t.members(familyProfiles.length)}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
             </TouchableOpacity>
@@ -436,7 +456,12 @@ export default function ProfilesScreen({
       )
     }
 
-    if (current.screen === 'familyProfile' && activeFamilyProfile) {
+    if (current.screen === 'familyProfile') {
+      if (!activeFamilyProfile) {
+        // Profile was deleted — go back to family list
+        setTimeout(pop, 0)
+        return null
+      }
       return (
         <ProfileDetail
           profile={activeFamilyProfile}
