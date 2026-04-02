@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useState, useEffect } from 'react'
+import { fetchProfilesFromSupabase, saveProfilesToSupabase } from '../utils/supabase'
 
 const STORAGE_KEY = 'allergie-check-profiles'
 
@@ -27,25 +28,37 @@ export function useProfiles() {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then(json => {
+    async function loadProfiles() {
+      // 1. Load from local cache first (instant)
+      let local = null
       try {
-        const stored = json !== null ? JSON.parse(json) : null
-        if (Array.isArray(stored) && stored.length > 0) {
-          setProfiles(stored.map(normalizeProfile))
-        } else {
-          setProfiles(defaultProfiles())
-        }
-      } catch {
+        const json = await AsyncStorage.getItem(STORAGE_KEY)
+        local = json !== null ? JSON.parse(json) : null
+      } catch {}
+
+      if (Array.isArray(local) && local.length > 0) {
+        setProfiles(local.map(normalizeProfile))
+      } else {
         setProfiles(defaultProfiles())
-      } finally {
-        setLoaded(true)
       }
-    })
+      setLoaded(true)
+
+      // 2. Pull from Supabase in background and refresh if data exists (last-write-wins)
+      const remote = await fetchProfilesFromSupabase()
+      if (Array.isArray(remote) && remote.length > 0) {
+        const normalized = remote.map(normalizeProfile)
+        setProfiles(normalized)
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+      }
+    }
+    loadProfiles()
   }, [])
 
   useEffect(() => {
     if (!loaded) return
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profiles))
+    // Sync to Supabase on every change (fire-and-forget)
+    saveProfilesToSupabase(profiles)
   }, [profiles, loaded])
 
   function addProfile(name) {
@@ -67,11 +80,11 @@ export function useProfiles() {
   function addAllergy(profileId, allergen) {
     const trimmed = allergen.trim().toLowerCase()
     if (!trimmed) return
-    setProfiles(prev => prev.map(p =>
-      p.id === profileId && !p.allergies.includes(trimmed)
-        ? { ...p, allergies: [...p.allergies, trimmed] }
-        : p
-    ))
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== profileId) return p
+      if (p.allergies.some(a => a.toLowerCase() === trimmed)) return p
+      return { ...p, allergies: [...p.allergies, trimmed] }
+    }))
   }
 
   function removeAllergy(profileId, allergen) {
@@ -85,11 +98,11 @@ export function useProfiles() {
   function addIntolerance(profileId, allergen) {
     const trimmed = allergen.trim().toLowerCase()
     if (!trimmed) return
-    setProfiles(prev => prev.map(p =>
-      p.id === profileId && !p.intolerances.includes(trimmed)
-        ? { ...p, intolerances: [...p.intolerances, trimmed] }
-        : p
-    ))
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== profileId) return p
+      if (p.intolerances.some(a => a.toLowerCase() === trimmed)) return p
+      return { ...p, intolerances: [...p.intolerances, trimmed] }
+    }))
   }
 
   function removeIntolerance(profileId, allergen) {

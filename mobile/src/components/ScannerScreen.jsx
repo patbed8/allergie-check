@@ -14,6 +14,11 @@ import { detectAllProfiles } from '../utils/allergenDetection'
 import { useRecentScans } from '../hooks/useRecentScans'
 import { useOCR } from '../hooks/useOCR'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+// ocrAnalysis: null | { results: MergedResult[], aiProvider: 'apple'|'gemini'|'none' }
+// MergedResult: { profileName, detectedAllergies, detectedIntolerances,
+//                 aiOnlyAllergies, aiOnlyIntolerances }
+
 const COLORS = {
   safe: '#22c55e',
   danger: '#ef4444',
@@ -51,6 +56,8 @@ const LABELS = {
     safe: 'Aucun allergène détecté.',
     alertAllergies: 'Allergies détectées',
     alertIntolerances: 'Intolérances détectées',
+    alertAIAllergies: 'Allergies détectées (IA)',
+    alertAIIntolerances: 'Intolérances détectées (IA)',
     scanAgain: 'Scanner à nouveau',
     backHome: 'Retour',
     permissionTitle: 'Permission caméra requise',
@@ -87,6 +94,8 @@ const LABELS = {
     safe: 'No allergens detected.',
     alertAllergies: 'Allergies detected',
     alertIntolerances: 'Intolerances detected',
+    alertAIAllergies: 'Allergies detected (AI)',
+    alertAIIntolerances: 'Intolerances detected (AI)',
     scanAgain: 'Scan again',
     backHome: 'Back',
     permissionTitle: 'Camera permission required',
@@ -133,7 +142,13 @@ function DetectionBanner({ results, isSafe, t }) {
 
   return (
     <View style={[styles.banner, styles.bannerDanger]}>
-      {results.map(({ profileName, detectedAllergies, detectedIntolerances }) => (
+      {results.map(({
+        profileName,
+        detectedAllergies,
+        detectedIntolerances,
+        aiOnlyAllergies = [],
+        aiOnlyIntolerances = [],
+      }) => (
         <View key={profileName} style={styles.bannerProfile}>
           <Text style={styles.bannerProfileName}>{profileName}</Text>
           {detectedAllergies.length > 0 && (
@@ -148,6 +163,20 @@ function DetectionBanner({ results, isSafe, t }) {
                 ⚡ {t.alertIntolerances}
               </Text>
               <Text style={styles.bannerGroupItems}>{detectedIntolerances.join(', ')}</Text>
+            </View>
+          )}
+          {aiOnlyAllergies.length > 0 && (
+            <View style={styles.bannerGroup}>
+              <Text style={styles.bannerGroupLabel}>🤖 {t.alertAIAllergies}</Text>
+              <Text style={styles.bannerGroupItems}>{aiOnlyAllergies.join(', ')}</Text>
+            </View>
+          )}
+          {aiOnlyIntolerances.length > 0 && (
+            <View style={styles.bannerGroup}>
+              <Text style={[styles.bannerGroupLabel, styles.bannerGroupLabelWarning]}>
+                🤖 {t.alertAIIntolerances}
+              </Text>
+              <Text style={styles.bannerGroupItems}>{aiOnlyIntolerances.join(', ')}</Text>
             </View>
           )}
         </View>
@@ -179,18 +208,26 @@ function OCRTextSection({ ocrText, t }) {
   )
 }
 
-function ProductResult({ product, profiles, t, lang, onScanAgain, onBack, ocrText }) {
+// precomputedResults is set for OCR scans (already includes AI findings).
+// For barcode scans it is null and detection runs here via detectAllProfiles().
+function ProductResult({ product, profiles, t, lang, onScanAgain, onBack, ocrText, precomputedResults }) {
   const productName = product?.product_name_fr || product?.product_name || t.unknownProduct
   const ingredientsText = product?.ingredients_text || null
   const allergenTags = product?.allergens_tags ?? []
 
-  const profilesWithItems = (profiles || []).filter(
-    p => (p.allergies || []).length > 0 || (p.intolerances || []).length > 0
-  )
-  const detectionResults = profilesWithItems.length > 0
-    ? detectAllProfiles(profilesWithItems, ingredientsText, allergenTags)
-    : []
-  const showBanner = profilesWithItems.length > 0
+  let detectionResults, showBanner
+  if (precomputedResults) {
+    detectionResults = precomputedResults
+    showBanner = true
+  } else {
+    const profilesWithItems = (profiles || []).filter(
+      p => (p.allergies || []).length > 0 || (p.intolerances || []).length > 0
+    )
+    detectionResults = profilesWithItems.length > 0
+      ? detectAllProfiles(profilesWithItems, ingredientsText, allergenTags)
+      : []
+    showBanner = profilesWithItems.length > 0
+  }
   const isSafe = showBanner && detectionResults.length === 0
 
   return (
@@ -250,8 +287,9 @@ export default function ScannerScreen({ profiles, lang }) {
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(null)
   const [ocrText, setOcrText] = useState(null)
+  const [ocrAnalysis, setOcrAnalysis] = useState(null) // { results, aiProvider }
   const { recentScans, addScan } = useRecentScans()
-  const { isProcessing, error: ocrError, pickImageFromCamera, extractTextFromImage, clearError: clearOcrError } = useOCR()
+  const { isProcessing, error: ocrError, pickImageFromCamera, analyzeLabel, clearError: clearOcrError } = useOCR()
 
   const t = LABELS[lang]
 
@@ -269,7 +307,10 @@ export default function ScannerScreen({ profiles, lang }) {
     setOcrText(null)
 
     try {
-      const res = await fetch(`${OFF_API_URL}/${normalized}.json`)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const res = await fetch(`${OFF_API_URL}/${normalized}.json`, { signal: controller.signal })
+      clearTimeout(timeout)
       const json = await res.json()
       if (json.status === 0) {
         setError(t.notFound)
@@ -287,10 +328,12 @@ export default function ScannerScreen({ profiles, lang }) {
   // ── OCR flow ─────────────────────────────────────────────────────────────────
 
   async function handleStartOCR() {
+    if (isProcessing) return
     clearOcrError()
     setScanMode('ocr')
     setError(null)
     setOcrText(null)
+    setOcrAnalysis(null)
     setProduct(null)
 
     const uri = await pickImageFromCamera()
@@ -300,14 +343,16 @@ export default function ScannerScreen({ profiles, lang }) {
       return
     }
 
-    const text = await extractTextFromImage(uri)
-    if (!text) {
-      // Error already set in hook — show error on current OCR screen
-      // scanMode stays 'ocr' so the processing/error UI is shown
+    // analyzeLabel handles OCR + keyword detection + on-device AI
+    const analysis = await analyzeLabel(uri, profiles)
+    if (!analysis) {
+      // Error already set in hook — scanMode stays 'ocr' to show error UI
       return
     }
 
+    const { text, mergedResults, aiProvider } = analysis
     setOcrText(text)
+    setOcrAnalysis({ results: mergedResults, aiProvider })
     const ocrProduct = {
       product_name: t.ocrProductName,
       product_name_fr: lang === 'fr' ? t.ocrProductName : null,
@@ -337,6 +382,7 @@ export default function ScannerScreen({ profiles, lang }) {
     setProduct(null)
     setError(null)
     setOcrText(null)
+    setOcrAnalysis(null)
     clearOcrError()
     setScanMode('barcode')
   }
@@ -347,6 +393,7 @@ export default function ScannerScreen({ profiles, lang }) {
     setProduct(null)
     setError(null)
     setOcrText(null)
+    setOcrAnalysis(null)
     clearOcrError()
     setScanMode(null)
   }
@@ -473,6 +520,7 @@ export default function ScannerScreen({ profiles, lang }) {
             onScanAgain={handleScanAgain}
             onBack={handleGoHome}
             ocrText={ocrText}
+            precomputedResults={ocrAnalysis?.results ?? null}
           />
         )}
       </SafeAreaView>

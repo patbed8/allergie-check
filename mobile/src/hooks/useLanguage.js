@@ -7,14 +7,18 @@ export function useLanguage() {
   const [lang, setLangState] = useState('fr')
 
   useEffect(() => {
-    AsyncStorage.getItem(LANG_KEY).then(stored => {
-      if (stored === 'fr' || stored === 'en') setLangState(stored)
-    })
+    AsyncStorage.getItem(LANG_KEY)
+      .then(stored => {
+        if (stored === 'fr' || stored === 'en') setLangState(stored)
+      })
+      .catch(() => {})
   }, [])
 
   async function setLang(l) {
     setLangState(l)
-    await AsyncStorage.setItem(LANG_KEY, l)
+    try {
+      await AsyncStorage.setItem(LANG_KEY, l)
+    } catch {}
   }
 
   return { lang, setLang }
