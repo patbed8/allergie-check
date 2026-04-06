@@ -19,6 +19,7 @@ struct ScannerView: View {
     @State private var pickedImage: UIImage? = nil
     @State private var supplementingProduct: OFFProduct? = nil
     @State private var currentBarcode: String? = nil
+    @State private var ocrCapturedImage: UIImage? = nil
 
     @Environment(ScanHistoryStore.self) private var scanHistory
 
@@ -120,6 +121,7 @@ struct ScannerView: View {
                                 openRecentScan(scan)
                             } label: {
                                 recentScanRow(scan)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -325,6 +327,11 @@ struct ScannerView: View {
                     OCRTextSection(ocrText: ocrText, t: t)
                 }
 
+                // OCR photo proof (collapsible)
+                if let ocrImage = ocrCapturedImage {
+                    OCRPhotoSection(image: ocrImage, t: t)
+                }
+
                 // Action buttons
                 HStack(spacing: 10) {
                     Button {
@@ -453,6 +460,42 @@ struct ScannerView: View {
         }
     }
 
+    // MARK: - Unified detection (keywords + AI additive)
+
+    /// Run allergen detection: keywords always run first (reliable synonym matching),
+    /// then AI adds extra findings when available.
+    /// Keywords handle synonym groups (e.g. "blé" → gluten) + compound neutralization.
+    /// AI adds context-aware findings that keywords might miss.
+    private func runDetection(
+        ingredientsText: String?,
+        allergenTags: [String]?
+    ) async -> [DetectionResult] {
+        let profiles = profileStore.activeProfiles
+        guard !profiles.isEmpty else { return [] }
+
+        // Always run keyword detection first (reliable synonym matching + compound neutralization)
+        let keywordResults = detectAllProfiles(
+            profiles, ingredientsText: ingredientsText, allergenTags: allergenTags)
+
+        let provider = await OnDeviceAIService.getProvider()
+        aiProvider = provider
+        let text = ingredientsText ?? ""
+
+        if provider == .apple && !text.isEmpty {
+            // AI adds context-aware findings on top of keyword results
+            let aiDetected = await OnDeviceAIService.analyzeWithAppleIntelligence(
+                ingredientsText: text, profiles: profiles)
+
+            if aiDetected.isEmpty {
+                return keywordResults
+            }
+            return mergeWithAIFindings(
+                keywordResults: keywordResults, aiDetected: aiDetected, profiles: profiles)
+        } else {
+            return keywordResults
+        }
+    }
+
     // MARK: - Actions
 
     private func fetchProduct(barcode: String) async {
@@ -468,14 +511,10 @@ struct ScannerView: View {
             product = fetched
             scanHistory.addScan(barcode: barcode, product: fetched, source: .barcode)
 
-            // Run detection
-            if !profileStore.activeProfiles.isEmpty {
-                detectionResults = detectAllProfiles(
-                    profileStore.activeProfiles,
-                    ingredientsText: fetched.ingredientsText,
-                    allergenTags: fetched.allergensTags
-                )
-            }
+            // Run detection (AI if available, keyword fallback)
+            detectionResults = await runDetection(
+                ingredientsText: fetched.ingredientsText,
+                allergenTags: fetched.allergensTags)
         } catch let offError as OpenFoodFactsError {
             switch offError {
             case .notFound: self.error = t.notFound
@@ -499,47 +538,33 @@ struct ScannerView: View {
         product = nil
         ocrText = nil
         detectionResults = nil
+        ocrCapturedImage = image
 
         do {
-            // Step 1: OCR
-            let text = try await OCRService.recognizeText(from: image)
-            ocrText = text
+            // Step 1: OCR — extract raw text
+            let rawText = try await OCRService.recognizeText(from: image)
+            ocrText = rawText
 
-            // Step 2: Keyword detection
-            let activeProfiles = profileStore.activeProfiles
-            var keywordResults: [DetectionResult] = []
-            if !activeProfiles.isEmpty {
-                keywordResults = detectAllProfiles(activeProfiles, ingredientsText: text, allergenTags: nil)
-            }
-
-            // Step 3: On-device AI (additive)
-            var mergedResults = keywordResults.map { r in
-                var copy = r
-                copy.aiOnlyAllergies = []
-                copy.aiOnlyIntolerances = []
-                return copy
-            }
-
-            aiProvider = .none
-            if !activeProfiles.isEmpty {
-                let provider = await OnDeviceAIService.getProvider()
-                aiProvider = provider
-                if provider == .apple {
-                    let aiDetected = await OnDeviceAIService.analyzeWithAppleIntelligence(
-                        ingredientsText: text, profiles: activeProfiles)
-                    if !aiDetected.isEmpty {
-                        mergedResults = mergeWithAIFindings(
-                            keywordResults: keywordResults, aiDetected: aiDetected, profiles: activeProfiles)
-                    }
+            // Step 2: Extract only ingredients via AI (if available), keyword fallback otherwise
+            var ingredientsText = rawText
+            let provider = await OnDeviceAIService.getProvider()
+            if provider == .apple {
+                if let extracted = await OnDeviceAIService.extractIngredientsFromOCR(fullText: rawText) {
+                    ingredientsText = extracted
+                }
+            } else {
+                if let extracted = OnDeviceAIService.extractIngredientsKeyword(fullText: rawText) {
+                    ingredientsText = extracted
                 }
             }
 
-            detectionResults = mergedResults
+            // Step 3: Run detection (keywords first, AI additive)
+            detectionResults = await runDetection(ingredientsText: ingredientsText, allergenTags: nil)
 
             let ocrProduct = OFFProduct(
                 productName: t.ocrProductName,
                 productNameFr: lang == .fr ? t.ocrProductName : nil,
-                ingredientsText: text,
+                ingredientsText: ingredientsText,
                 allergensTags: []
             )
             product = ocrProduct
@@ -563,8 +588,26 @@ struct ScannerView: View {
     private func openRecentScan(_ scan: ScanResult) {
         product = scan.productData
         ocrText = nil
-        detectionResults = nil
         error = nil
+        // Keyword results immediately (reliable), then AI adds on top
+        if let pd = scan.productData {
+            detectionResults = detectAllProfiles(
+                profileStore.activeProfiles,
+                ingredientsText: pd.ingredientsText,
+                allergenTags: pd.allergensTags)
+            // AI additive layer — can only ADD findings, never removes keyword results
+            Task {
+                let withAI = await runDetection(
+                    ingredientsText: pd.ingredientsText,
+                    allergenTags: pd.allergensTags)
+                // Only update if AI found more (keyword base is always included)
+                if withAI.count >= (detectionResults?.count ?? 0) {
+                    detectionResults = withAI
+                }
+            }
+        } else {
+            detectionResults = nil
+        }
     }
 
     private func resetState() {
@@ -577,6 +620,7 @@ struct ScannerView: View {
         pickedImage = nil
         supplementingProduct = nil
         currentBarcode = nil
+        ocrCapturedImage = nil
     }
 
     private func supplementWithOCR() {
@@ -587,50 +631,36 @@ struct ScannerView: View {
     private func processSupplementOCR(_ image: UIImage) async {
         guard let original = supplementingProduct else { return }
         isLoading = true
+        ocrCapturedImage = image
 
         do {
-            let text = try await OCRService.recognizeText(from: image)
-            ocrText = text
+            let rawText = try await OCRService.recognizeText(from: image)
+            ocrText = rawText
+
+            // Extract only ingredients via AI (if available), keyword fallback otherwise
+            var ingredientsText = rawText
+            let provider = await OnDeviceAIService.getProvider()
+            if provider == .apple {
+                if let extracted = await OnDeviceAIService.extractIngredientsFromOCR(fullText: rawText) {
+                    ingredientsText = extracted
+                }
+            } else {
+                if let extracted = OnDeviceAIService.extractIngredientsKeyword(fullText: rawText) {
+                    ingredientsText = extracted
+                }
+            }
 
             // Merge OCR ingredients into the original barcode product
             let merged = OFFProduct(
                 productName: original.productName,
                 productNameFr: original.productNameFr,
-                ingredientsText: text,
+                ingredientsText: ingredientsText,
                 allergensTags: original.allergensTags
             )
             product = merged
 
-            // Run detection with merged data
-            let activeProfiles = profileStore.activeProfiles
-            var keywordResults: [DetectionResult] = []
-            if !activeProfiles.isEmpty {
-                keywordResults = detectAllProfiles(activeProfiles, ingredientsText: text, allergenTags: merged.allergensTags)
-            }
-
-            // On-device AI (additive)
-            var mergedResults = keywordResults.map { r in
-                var copy = r
-                copy.aiOnlyAllergies = []
-                copy.aiOnlyIntolerances = []
-                return copy
-            }
-
-            aiProvider = .none
-            if !activeProfiles.isEmpty {
-                let provider = await OnDeviceAIService.getProvider()
-                aiProvider = provider
-                if provider == .apple {
-                    let aiDetected = await OnDeviceAIService.analyzeWithAppleIntelligence(
-                        ingredientsText: text, profiles: activeProfiles)
-                    if !aiDetected.isEmpty {
-                        mergedResults = mergeWithAIFindings(
-                            keywordResults: keywordResults, aiDetected: aiDetected, profiles: activeProfiles)
-                    }
-                }
-            }
-
-            detectionResults = mergedResults
+            // Run detection (AI primary, keyword fallback)
+            detectionResults = await runDetection(ingredientsText: ingredientsText, allergenTags: merged.allergensTags)
 
             // Update scan history with merged product
             if let barcode = currentBarcode {
@@ -825,6 +855,40 @@ struct OCRTextSection: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+}
+
+// MARK: - OCR Photo Section (collapsible)
+
+struct OCRPhotoSection: View {
+    let image: UIImage
+    let t: Labels
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation { expanded.toggle() }
+            } label: {
+                HStack {
+                    Text(t.ocrPhotoTitle)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(.label))
+                    Spacer()
+                    Text(expanded ? t.ocrTextHide : t.ocrTextShow)
+                        .font(.subheadline)
+                        .foregroundStyle(.blue)
+                }
+            }
+
+            if expanded {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
