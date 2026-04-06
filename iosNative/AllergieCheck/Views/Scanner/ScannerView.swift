@@ -468,7 +468,8 @@ struct ScannerView: View {
     /// AI adds context-aware findings that keywords might miss.
     private func runDetection(
         ingredientsText: String?,
-        allergenTags: [String]?
+        allergenTags: [String]?,
+        barcode: String? = nil
     ) async -> [DetectionResult] {
         let profiles = profileStore.activeProfiles
         guard !profiles.isEmpty else { return [] }
@@ -484,7 +485,7 @@ struct ScannerView: View {
         if provider == .apple && !text.isEmpty {
             // AI adds context-aware findings on top of keyword results
             let aiDetected = await OnDeviceAIService.analyzeWithAppleIntelligence(
-                ingredientsText: text, profiles: profiles)
+                ingredientsText: text, profiles: profiles, barcode: barcode)
 
             if aiDetected.isEmpty {
                 return keywordResults
@@ -514,7 +515,8 @@ struct ScannerView: View {
             // Run detection (AI if available, keyword fallback)
             detectionResults = await runDetection(
                 ingredientsText: fetched.ingredientsText,
-                allergenTags: fetched.allergensTags)
+                allergenTags: fetched.allergensTags,
+                barcode: barcode)
         } catch let offError as OpenFoodFactsError {
             switch offError {
             case .notFound: self.error = t.notFound
@@ -595,16 +597,6 @@ struct ScannerView: View {
                 profileStore.activeProfiles,
                 ingredientsText: pd.ingredientsText,
                 allergenTags: pd.allergensTags)
-            // AI additive layer — can only ADD findings, never removes keyword results
-            Task {
-                let withAI = await runDetection(
-                    ingredientsText: pd.ingredientsText,
-                    allergenTags: pd.allergensTags)
-                // Only update if AI found more (keyword base is always included)
-                if withAI.count >= (detectionResults?.count ?? 0) {
-                    detectionResults = withAI
-                }
-            }
         } else {
             detectionResults = nil
         }

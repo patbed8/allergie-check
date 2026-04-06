@@ -52,19 +52,22 @@ func getAllergenSynonyms(for allergen: String) -> [String] {
 
 // MARK: - Free-of claim removal
 
-/// Remove "X-free", "free of X", and "sans X" claims so they don't trigger false positives.
+/// Remove entire ingredient segments that contain "sans X", "X-free", or "free of X".
+/// Splits by comma and drops any segment that matches a free-of pattern.
+/// This prevents e.g. "avoine sans gluten" from leaving "avoine" which would trigger gluten.
 func removeFreeOfClaims(_ text: String) -> String {
-    var cleaned = text
-    // English: "gluten-free", "nut free", "dairy-free"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\b\w+[-\s]free\b"#, with: "", options: .regularExpression)
-    // English: "free of gluten", "free of nuts"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\bfree\s+of\s+[\w\s,]+(?=[.,;)]|$)"#, with: "", options: .regularExpression)
-    // French: "sans gluten", "sans noix", "sans arachides ni noix"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\bsans\s+[\w\s,]+(?:ni\s+[\w\s,]+)*(?=[.,;)]|$)"#, with: "", options: .regularExpression)
-    return cleaned
+    let segments = text.components(separatedBy: ",")
+    let filtered = segments.filter { segment in
+        let s = segment.trimmingCharacters(in: .whitespaces).lowercased()
+        // French: "sans gluten", "sans noix", etc.
+        if s.range(of: #"\bsans\s+\w+"#, options: .regularExpression) != nil { return false }
+        // English: "gluten-free", "nut free", "dairy-free"
+        if s.range(of: #"\w+[-\s]free\b"#, options: .regularExpression) != nil { return false }
+        // English: "free of gluten"
+        if s.range(of: #"\bfree\s+of\s+\w+"#, options: .regularExpression) != nil { return false }
+        return true
+    }
+    return filtered.joined(separator: ",")
 }
 
 // MARK: - Word-boundary keyword matching
