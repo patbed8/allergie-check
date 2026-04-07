@@ -52,19 +52,22 @@ func getAllergenSynonyms(for allergen: String) -> [String] {
 
 // MARK: - Free-of claim removal
 
-/// Remove "X-free", "free of X", and "sans X" claims so they don't trigger false positives.
+/// Remove entire ingredient segments that contain "sans X", "X-free", or "free of X".
+/// Splits by comma and drops any segment that matches a free-of pattern.
+/// This prevents e.g. "avoine sans gluten" from leaving "avoine" which would trigger gluten.
 func removeFreeOfClaims(_ text: String) -> String {
-    var cleaned = text
-    // English: "gluten-free", "nut free", "dairy-free"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\b\w+[-\s]free\b"#, with: "", options: .regularExpression)
-    // English: "free of gluten", "free of nuts"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\bfree\s+of\s+[\w\s,]+(?=[.,;)]|$)"#, with: "", options: .regularExpression)
-    // French: "sans gluten", "sans noix", "sans arachides ni noix"
-    cleaned = cleaned.replacingOccurrences(
-        of: #"\bsans\s+[\w\s,]+(?:ni\s+[\w\s,]+)*(?=[.,;)]|$)"#, with: "", options: .regularExpression)
-    return cleaned
+    let segments = text.components(separatedBy: ",")
+    let filtered = segments.filter { segment in
+        let s = segment.trimmingCharacters(in: .whitespaces).lowercased()
+        // French: "sans gluten", "sans noix", etc.
+        if s.range(of: #"\bsans\s+\w+"#, options: .regularExpression) != nil { return false }
+        // English: "gluten-free", "nut free", "dairy-free"
+        if s.range(of: #"\w+[-\s]free\b"#, options: .regularExpression) != nil { return false }
+        // English: "free of gluten"
+        if s.range(of: #"\bfree\s+of\s+\w+"#, options: .regularExpression) != nil { return false }
+        return true
+    }
+    return filtered.joined(separator: ",")
 }
 
 // MARK: - Word-boundary keyword matching
@@ -87,6 +90,43 @@ func keywordInText(_ kw: String, text: String) -> Bool {
     return false
 }
 
+// MARK: - Compound phrase neutralization
+
+/// Regex patterns for multi-word food terms that contain allergen keywords but are NOT allergens.
+/// Regex allows tolerance for OCR typos (e.g. "POMMES DE IERRE" instead of "POMMES DE TERRE").
+private let safeCompoundPatterns: [(pattern: String, token: String)] = [
+    // "pommes de terre" and OCR variants like "pommes de ierre" (potatoes, not apples)
+    (#"\bpommes?\s+de\s+\S*erres?\b"#, "_POTATO_"),
+    (#"\bpotatoe?s?\b"#, "_POTATO_"),
+    // "beurre de cacao" (cocoa butter, not dairy butter)
+    (#"\bbeurre\s+de\s+cacao\b"#, "_COCOA_BUTTER_"),
+    (#"\bcocoa\s+butter\b"#, "_COCOA_BUTTER_"),
+    // "beurre de karité" (shea butter, not dairy butter)
+    (#"\bbeurre\s+de\s+karit\w*\b"#, "_SHEA_BUTTER_"),
+    (#"\bshea\s+butter\b"#, "_SHEA_BUTTER_"),
+    // "crème de cacao" (not dairy cream)
+    (#"\bcr[eè]me\s+de\s+cacao\b"#, "_COCOA_CREAM_"),
+    // "lait de coco" (coconut milk, not dairy milk)
+    (#"\blait\s+de\s+coco\b"#, "_COCONUT_MILK_"),
+    (#"\bcoconut\s+milk\b"#, "_COCONUT_MILK_"),
+    // "crème de coco" (coconut cream, not dairy cream)
+    (#"\bcr[eè]me\s+de\s+coco\b"#, "_COCONUT_CREAM_"),
+    (#"\bcoconut\s+cream\b"#, "_COCONUT_CREAM_"),
+]
+
+/// Replace known safe compound phrases with neutral tokens to prevent false positives.
+/// Uses regex for tolerance against OCR typos in Open Food Facts data.
+func neutralizeCompounds(_ text: String) -> String {
+    var result = text
+    for (pattern, token) in safeCompoundPatterns {
+        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+            result = regex.stringByReplacingMatches(
+                in: result, range: NSRange(result.startIndex..., in: result), withTemplate: token)
+        }
+    }
+    return result
+}
+
 // MARK: - Detection
 
 /// Detect which allergens from the list appear in the text or tags.
@@ -103,7 +143,7 @@ func detectAllergens(_ list: [String], text: String, tags: [String]) -> [String]
 
 /// Run detection across all profiles. Returns only profiles with at least one detection.
 func detectAllProfiles(_ profiles: [Profile], ingredientsText: String?, allergenTags: [String]?) -> [DetectionResult] {
-    let text = removeFreeOfClaims((ingredientsText ?? "").lowercased())
+    let text = neutralizeCompounds(removeFreeOfClaims((ingredientsText ?? "").lowercased()))
     let tags = (allergenTags ?? []).map { $0.replacingOccurrences(of: #"^[a-z]{2}:"#, with: "", options: .regularExpression).lowercased() }
 
     return profiles.compactMap { profile in
