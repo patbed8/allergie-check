@@ -14,6 +14,7 @@
 		70556AFCFE74A72F8944C258 /* OnDeviceAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758F40F0CA0EE97D9ACA8521 /* OnDeviceAIService.swift */; };
 		758F9553AA15189C0F17AA7E /* AllergieCheckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09096CD9632A5A09B42A4F5E /* AllergieCheckApp.swift */; };
 		7FE6A5453A06A2E80EADD76F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7572A9B3991D93974F314E93 /* Models.swift */; };
+		97F3E317E4D80ECDED400E99 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4067E209D9CD2C1EA1EE1D2B /* Assets.xcassets */; };
 		9F351117A36984386706602E /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583F00D78A59538DCC3D73F3 /* OCRService.swift */; };
 		AE42D006EC0B2209091759F7 /* ProfilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BB63B1A68D9D65D8839477E /* ProfilesView.swift */; };
 		C88FE1672417DE2CDAF78B11 /* AllergenDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A92E0B446DE4AC8B8135A9 /* AllergenDetection.swift */; };
@@ -28,6 +29,7 @@
 		29E651B60CA4603CD5C8D037 /* ScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanHistoryStore.swift; sourceTree = "<group>"; };
 		34128F3EF7647E8E68086CBC /* ProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileStore.swift; sourceTree = "<group>"; };
 		37B8BCBE6E20A6AE5588E088 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4067E209D9CD2C1EA1EE1D2B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		50A92E0B446DE4AC8B8135A9 /* AllergenDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllergenDetection.swift; sourceTree = "<group>"; };
 		583F00D78A59538DCC3D73F3 /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		6A7F8AAEF6C5173E8A0F072F /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
@@ -35,6 +37,7 @@
 		7572A9B3991D93974F314E93 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		758F40F0CA0EE97D9ACA8521 /* OnDeviceAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceAIService.swift; sourceTree = "<group>"; };
 		C27EE03EFCFC2C60C57B81DB /* ScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerView.swift; sourceTree = "<group>"; };
+		CDE03ECB2F8552BA00734AA9 /* AllergieCheck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AllergieCheck.entitlements; sourceTree = "<group>"; };
 		F21425E7F1A8E46329D7EC75 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -58,7 +61,9 @@
 		6FFF4286C26991911B954A98 /* AllergieCheck */ = {
 			isa = PBXGroup;
 			children = (
+				CDE03ECB2F8552BA00734AA9 /* AllergieCheck.entitlements */,
 				09096CD9632A5A09B42A4F5E /* AllergieCheckApp.swift */,
+				4067E209D9CD2C1EA1EE1D2B /* Assets.xcassets */,
 				37B8BCBE6E20A6AE5588E088 /* Info.plist */,
 				6A7F8AAEF6C5173E8A0F072F /* Localization.swift */,
 				6E63A5D4A97552893FFB67D1 /* Models */,
@@ -131,6 +136,7 @@
 			buildConfigurationList = CFC358A38B866621E362DEB9 /* Build configuration list for PBXNativeTarget "AllergieCheck" */;
 			buildPhases = (
 				891E283F64141B409616541B /* Sources */,
+				D98DBFC6B37B27516D7293E8 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -171,6 +177,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		D98DBFC6B37B27516D7293E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97F3E317E4D80ECDED400E99 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		891E283F64141B409616541B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -198,18 +215,25 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AllergieCheck/AllergieCheck.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 96M3Q424E8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AllergieCheck/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Allergie Check";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.patbed8.allergiecheck;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -340,18 +364,25 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AllergieCheck/AllergieCheck.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 96M3Q424E8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AllergieCheck/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Allergie Check";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.patbed8.allergiecheck;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

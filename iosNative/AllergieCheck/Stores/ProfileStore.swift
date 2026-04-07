@@ -1,4 +1,4 @@
-// ProfileStore.swift — Profile CRUD with UserDefaults persistence
+// ProfileStore.swift — Profile CRUD with UserDefaults + iCloud KV Store sync
 
 import Foundation
 import Observation
@@ -9,14 +9,21 @@ class ProfileStore {
     var loaded = false
 
     private let storageKey = "allergie-check-profiles"
+    private let iCloud = NSUbiquitousKeyValueStore.default
 
     init() {
         loadProfiles()
+        startObservingICloud()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Persistence
 
     private func loadProfiles() {
+        // Load instantly from UserDefaults (always available)
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([Profile].self, from: data),
            !decoded.isEmpty {
@@ -25,11 +32,50 @@ class ProfileStore {
             profiles = [Profile(id: Profile.makeId(), name: "Moi", allergies: [], intolerances: [])]
         }
         loaded = true
+
+        // Sync from iCloud in background (may be newer from another device)
+        syncFromICloud()
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(profiles) {
-            UserDefaults.standard.set(data, forKey: storageKey)
+        guard let data = try? JSONEncoder().encode(profiles) else { return }
+        // Always save to UserDefaults (instant, always available)
+        UserDefaults.standard.set(data, forKey: storageKey)
+        // Also push to iCloud KV Store (if available)
+        iCloud.set(data, forKey: storageKey)
+        iCloud.synchronize()
+    }
+
+    // MARK: - iCloud sync
+
+    private func startObservingICloud() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(iCloudDidChange(_:)),
+            name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: iCloud
+        )
+        iCloud.synchronize()
+    }
+
+    @objc private func iCloudDidChange(_ notification: Notification) {
+        // Another device changed the profiles — merge in
+        syncFromICloud()
+    }
+
+    private func syncFromICloud() {
+        guard let data = iCloud.data(forKey: storageKey),
+              let remote = try? JSONDecoder().decode([Profile].self, from: data),
+              !remote.isEmpty else { return }
+
+        // Only update if remote data differs from local
+        if let localData = try? JSONEncoder().encode(profiles),
+           localData == data { return }
+
+        profiles = remote
+        // Keep UserDefaults in sync
+        if let freshData = try? JSONEncoder().encode(profiles) {
+            UserDefaults.standard.set(freshData, forKey: storageKey)
         }
     }
 
