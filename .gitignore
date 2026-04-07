@@ -36,3 +36,7 @@ Thumbs.db
 
 # Expo
 .expo-shared/
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/
