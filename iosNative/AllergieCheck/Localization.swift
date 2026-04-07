@@ -27,6 +27,7 @@ struct Labels {
     var ocrExtractedText: String { lang == .fr ? "Texte extrait" : "Extracted text" }
     var ocrTextHide: String { lang == .fr ? "Masquer" : "Hide" }
     var ocrTextShow: String { lang == .fr ? "Afficher" : "Show" }
+    var ocrPhotoTitle: String { lang == .fr ? "Photo de l'étiquette" : "Label photo" }
     var unavailable: String { lang == .fr ? "Non disponible" : "Not available" }
     var none: String { lang == .fr ? "Aucun" : "None" }
     var safe: String { lang == .fr ? "Aucun allergène détecté." : "No allergens detected." }
