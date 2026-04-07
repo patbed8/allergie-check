@@ -156,131 +156,138 @@ struct ProfileDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                // Name section
-                GroupBox {
-                    if editingName {
+        List {
+            // Name section
+            Section {
+                if editingName {
+                    HStack {
+                        TextField(t.editName, text: $nameInput)
+                            .onSubmit { saveName() }
+
+                        Button { saveName() } label: {
+                            Image(systemName: "checkmark")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        Button { editingName = false } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                } else {
+                    Button {
+                        nameInput = liveProfile.name
+                        editingName = true
+                    } label: {
                         HStack {
-                            TextField(t.editName, text: $nameInput)
-                                .textFieldStyle(.roundedBorder)
-                                .onSubmit { saveName() }
-
-                            Button { saveName() } label: {
-                                Image(systemName: "checkmark")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-
-                            Button { editingName = false } label: {
-                                Image(systemName: "xmark")
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    } else {
-                        Button {
-                            nameInput = liveProfile.name
-                            editingName = true
-                        } label: {
-                            HStack {
-                                Text(liveProfile.name)
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(Color(.label))
-                                Spacer()
-                                Image(systemName: "pencil")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
-                // Allergies section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(t.allergies)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        if liveProfile.allergies.isEmpty && addingType != .allergy {
-                            Text(t.noAllergies)
-                                .font(.subheadline)
+                            Text(liveProfile.name)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color(.label))
+                            Spacer()
+                            Image(systemName: "pencil")
                                 .foregroundStyle(.secondary)
-                                .italic()
-                        }
-
-                        FlowLayout(spacing: 8) {
-                            ForEach(liveProfile.allergies, id: \.self) { allergen in
-                                allergyChip(allergen, type: .allergy)
-                            }
-                        }
-
-                        if addingType == .allergy {
-                            addItemRow {
-                                profileStore.addAllergy(profileId: profile.id, allergen: newItemInput)
-                                newItemInput = ""
-                                addingType = nil
-                            }
-                        } else {
-                            Button {
-                                addingType = .allergy
-                                newItemInput = ""
-                            } label: {
-                                Label(t.addAllergy, systemImage: "plus.circle")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-                    }
-                }
-
-                // Intolerances section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(t.intolerances)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        if liveProfile.intolerances.isEmpty && addingType != .intolerance {
-                            Text(t.noIntolerances)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .italic()
-                        }
-
-                        FlowLayout(spacing: 8) {
-                            ForEach(liveProfile.intolerances, id: \.self) { allergen in
-                                allergyChip(allergen, type: .intolerance)
-                            }
-                        }
-
-                        if addingType == .intolerance {
-                            addItemRow {
-                                profileStore.addIntolerance(profileId: profile.id, allergen: newItemInput)
-                                newItemInput = ""
-                                addingType = nil
-                            }
-                        } else {
-                            Button {
-                                addingType = .intolerance
-                                newItemInput = ""
-                            } label: {
-                                Label(t.addIntolerance, systemImage: "plus.circle")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.orange)
-                            }
                         }
                     }
                 }
             }
-            .padding(16)
+
+            // Allergies section
+            Section {
+                if liveProfile.allergies.isEmpty && addingType != .allergy {
+                    Text(t.noAllergies)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+
+                ForEach(liveProfile.allergies, id: \.self) { allergen in
+                    Button {
+                        selectedAllergen = allergen
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("⛔️")
+                            Text(allergen)
+                                .foregroundStyle(Color(.label))
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            profileStore.removeAllergy(profileId: profile.id, allergen: allergen)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
+
+                if addingType == .allergy {
+                    addItemRow {
+                        profileStore.addAllergy(profileId: profile.id, allergen: newItemInput)
+                        newItemInput = ""
+                        addingType = nil
+                    }
+                } else {
+                    Button {
+                        addingType = .allergy
+                        newItemInput = ""
+                    } label: {
+                        Label(t.addAllergy, systemImage: "plus.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
+            } header: {
+                Text(t.allergies)
+            }
+
+            // Intolerances section
+            Section {
+                if liveProfile.intolerances.isEmpty && addingType != .intolerance {
+                    Text(t.noIntolerances)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+
+                ForEach(liveProfile.intolerances, id: \.self) { allergen in
+                    Button {
+                        selectedAllergen = allergen
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("⚠️")
+                            Text(allergen)
+                                .foregroundStyle(Color(.label))
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            profileStore.removeIntolerance(profileId: profile.id, allergen: allergen)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
+
+                if addingType == .intolerance {
+                    addItemRow {
+                        profileStore.addIntolerance(profileId: profile.id, allergen: newItemInput)
+                        newItemInput = ""
+                        addingType = nil
+                    }
+                } else {
+                    Button {
+                        addingType = .intolerance
+                        newItemInput = ""
+                    } label: {
+                        Label(t.addIntolerance, systemImage: "plus.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            } header: {
+                Text(t.intolerances)
+            }
         }
-        .background(Color(.systemGroupedBackground))
         .sheet(item: $selectedAllergen) { allergen in
             SynonymsSheet(allergen: allergen, lang: lang)
                 .presentationDetents([.medium])
@@ -290,36 +297,6 @@ struct ProfileDetailView: View {
     private func saveName() {
         profileStore.updateProfileName(id: profile.id, name: nameInput)
         editingName = false
-    }
-
-    private func allergyChip(_ allergen: String, type: AddingType) -> some View {
-        let isAllergy = type == .allergy
-        return Button {
-            selectedAllergen = allergen
-        } label: {
-            HStack(spacing: 4) {
-                Text(allergen)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                Button {
-                    if isAllergy {
-                        profileStore.removeAllergy(profileId: profile.id, allergen: allergen)
-                    } else {
-                        profileStore.removeIntolerance(profileId: profile.id, allergen: allergen)
-                    }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
-                }
-            }
-            .padding(.vertical, 5)
-            .padding(.leading, 10)
-            .padding(.trailing, 6)
-            .background(isAllergy ? Color.red.opacity(0.1) : Color.orange.opacity(0.1))
-            .foregroundStyle(isAllergy ? .red : .orange)
-            .clipShape(Capsule())
-        }
     }
 
     private func addItemRow(onSubmit: @escaping () -> Void) -> some View {
@@ -395,17 +372,16 @@ struct FamilyListView: View {
 
                         Spacer()
 
-                        Button {
-                            profileToDelete = profile
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                        }
-                        .buttonStyle(.plain)
-
                         Image(systemName: "chevron.right")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        profileToDelete = profile
+                    } label: {
+                        Image(systemName: "trash")
                     }
                 }
             }
