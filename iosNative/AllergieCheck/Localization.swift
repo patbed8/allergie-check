@@ -19,7 +19,11 @@ struct Labels {
     var loading: String { lang == .fr ? "Analyse en cours…" : "Scanning..." }
     var ocrLoading: String { lang == .fr ? "Lecture de l'étiquette…" : "Reading label..." }
     var notFound: String { lang == .fr ? "Produit introuvable." : "Product not found." }
+    var notFoundTitle: String { lang == .fr ? "Produit introuvable" : "Product not found" }
+    var notFoundSubtitle: String { lang == .fr ? "Ce produit n'existe pas dans la base de données. Vous pouvez photographier l'étiquette pour analyser les ingrédients." : "This product doesn't exist in the database. You can photograph the label to analyze ingredients." }
     var networkError: String { lang == .fr ? "Erreur réseau. Vérifiez votre connexion." : "Network error. Check your connection." }
+    var networkErrorTitle: String { lang == .fr ? "Erreur réseau" : "Network error" }
+    var networkErrorSubtitle: String { lang == .fr ? "Impossible de joindre le serveur. Vérifiez votre connexion internet ou photographiez l'étiquette pour analyser les ingrédients hors ligne." : "Cannot reach the server. Check your internet connection or photograph the label to analyze ingredients offline." }
     var unknownProduct: String { lang == .fr ? "Produit sans nom" : "Unknown product" }
     var ocrProductName: String { lang == .fr ? "Produit scanné" : "Scanned product" }
     var ingredients: String { lang == .fr ? "Ingrédients" : "Ingredients" }

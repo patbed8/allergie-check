@@ -24,6 +24,8 @@ class BarcodeScannerViewController: UIViewController {
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private var hasScanned = false
+    private var torchOn = false
+    private var flashBtn: UIButton?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -41,6 +43,7 @@ class BarcodeScannerViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        setTorch(on: false)
         captureSession.stopRunning()
     }
 
@@ -86,6 +89,8 @@ class BarcodeScannerViewController: UIViewController {
             frameView.heightAnchor.constraint(equalToConstant: 140),
         ])
 
+        let btnConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+
         // Cancel button
         let cancelBtn = UIButton(type: .system)
         cancelBtn.setTitle(nil, for: .normal)
@@ -94,24 +99,57 @@ class BarcodeScannerViewController: UIViewController {
         cancelBtn.layer.borderWidth = 1
         cancelBtn.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
         cancelBtn.translatesAutoresizingMaskIntoConstraints = false
-
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        let xImage = UIImage(systemName: "xmark", withConfiguration: config)
-        cancelBtn.setImage(xImage, for: .normal)
+        cancelBtn.setImage(UIImage(systemName: "xmark", withConfiguration: btnConfig), for: .normal)
         cancelBtn.tintColor = .white
         cancelBtn.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
         view.addSubview(cancelBtn)
 
+        // Flash button
+        let flashButton = UIButton(type: .system)
+        flashButton.translatesAutoresizingMaskIntoConstraints = false
+        flashButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        flashButton.layer.cornerRadius = 24
+        flashButton.layer.borderWidth = 1
+        flashButton.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
+        flashButton.setImage(UIImage(systemName: "bolt.slash.fill", withConfiguration: btnConfig), for: .normal)
+        flashButton.tintColor = .white
+        flashButton.addTarget(self, action: #selector(flashTapped), for: .touchUpInside)
+        view.addSubview(flashButton)
+        self.flashBtn = flashButton
+
         NSLayoutConstraint.activate([
-            cancelBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            cancelBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             cancelBtn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
             cancelBtn.widthAnchor.constraint(equalToConstant: 48),
             cancelBtn.heightAnchor.constraint(equalToConstant: 48),
+
+            flashButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            flashButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+            flashButton.widthAnchor.constraint(equalToConstant: 48),
+            flashButton.heightAnchor.constraint(equalToConstant: 48),
         ])
     }
 
     @objc private func cancelTapped() {
+        setTorch(on: false)
         onCancel?()
+    }
+
+    @objc private func flashTapped() {
+        torchOn.toggle()
+        setTorch(on: torchOn)
+        let iconName = torchOn ? "bolt.fill" : "bolt.slash.fill"
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        flashBtn?.setImage(UIImage(systemName: iconName, withConfiguration: config), for: .normal)
+        flashBtn?.tintColor = torchOn ? .yellow : .white
+    }
+
+    private func setTorch(on: Bool) {
+        guard let device = AVCaptureDevice.default(for: .video),
+              device.hasTorch else { return }
+        try? device.lockForConfiguration()
+        device.torchMode = on ? .on : .off
+        device.unlockForConfiguration()
     }
 }
 
