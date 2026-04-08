@@ -14,6 +14,7 @@ struct ScannerView: View {
     @State private var detectionResults: [DetectionResult]? = nil
     @State private var aiProvider: AIProvider = .none
     @State private var error: String? = nil
+    @State private var showNoIngredientsModal = false
     @State private var isLoading = false
     @State private var showImagePicker = false
     @State private var pickedImage: UIImage? = nil
@@ -46,6 +47,10 @@ struct ScannerView: View {
             } else {
                 idleView
             }
+        }
+        .sheet(isPresented: $showNoIngredientsModal) {
+            noIngredientsModalView
+                .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showImagePicker) {
             PhotoCaptureView(
@@ -86,7 +91,7 @@ struct ScannerView: View {
                 Button {
                     scanMode = .barcode
                 } label: {
-                    Label(t.scanBtn, systemImage: "camera")
+                    Label(t.scanBtn, systemImage: "barcode.viewfinder")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -243,7 +248,7 @@ struct ScannerView: View {
                 scanMode = .barcode
                 error = nil
             } label: {
-                Label(t.scanAgain, systemImage: "camera")
+                Label(t.scanAgain, systemImage: "barcode.viewfinder")
             }
             .buttonStyle(.borderedProminent)
 
@@ -255,6 +260,60 @@ struct ScannerView: View {
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - No ingredients modal
+
+    private var noIngredientsModalView: some View {
+        VStack(spacing: 24) {
+            // Close button
+            HStack {
+                Spacer()
+                Button {
+                    showNoIngredientsModal = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                        .background(Color(.systemGray5))
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.top, 8)
+
+            Spacer()
+
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 56))
+                .foregroundStyle(.orange)
+
+            Text(t.noIngredientsTitle)
+                .font(.title.bold())
+                .multilineTextAlignment(.center)
+
+            Text(t.noIngredientsSuggest)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+
+            Spacer()
+
+            Button {
+                showNoIngredientsModal = false
+                supplementWithOCR()
+            } label: {
+                Label(t.ocrBtn, systemImage: "barcode.viewfinder")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+
+        }
+        .padding(24)
     }
 
     // MARK: - Product result
@@ -345,7 +404,7 @@ struct ScannerView: View {
                         resetState()
                         scanMode = .barcode
                     } label: {
-                        Label(t.scanAgain, systemImage: "camera")
+                        Label(t.scanAgain, systemImage: "barcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -362,7 +421,7 @@ struct ScannerView: View {
         if let results = detectionResults {
             if results.isEmpty {
                 if ingredientsUnavailable {
-                    noIngredientsWarningBanner
+                    EmptyView()
                 } else {
                     // Safe banner
                     HStack {
@@ -421,7 +480,7 @@ struct ScannerView: View {
 
             if isSafe {
                 if ingredientsUnavailable {
-                    noIngredientsWarningBanner
+                    EmptyView()
                         .onAppear { detectionResults = computed }
                 } else {
                     HStack {
@@ -517,6 +576,12 @@ struct ScannerView: View {
                 ingredientsText: fetched.ingredientsText,
                 allergenTags: fetched.allergensTags,
                 barcode: barcode)
+
+            // Show modal if no ingredients available and no allergens detected
+            let noIngredients = (fetched.ingredientsText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if noIngredients && (detectionResults ?? []).isEmpty {
+                showNoIngredientsModal = true
+            }
         } catch let offError as OpenFoodFactsError {
             switch offError {
             case .notFound: self.error = t.notFound
@@ -597,6 +662,11 @@ struct ScannerView: View {
                 profileStore.activeProfiles,
                 ingredientsText: pd.ingredientsText,
                 allergenTags: pd.allergensTags)
+
+            let noIngredients = (pd.ingredientsText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if noIngredients && (detectionResults ?? []).isEmpty {
+                showNoIngredientsModal = true
+            }
         } else {
             detectionResults = nil
         }
@@ -613,6 +683,7 @@ struct ScannerView: View {
         supplementingProduct = nil
         currentBarcode = nil
         ocrCapturedImage = nil
+        showNoIngredientsModal = false
     }
 
     private func supplementWithOCR() {
@@ -673,33 +744,6 @@ struct ScannerView: View {
     private var ingredientsUnavailable: Bool {
         guard let product else { return false }
         return (product.ingredientsText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var noIngredientsWarningBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text(t.noIngredientsTitle)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.orange)
-            }
-            Text(t.noIngredientsSuggest)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button {
-                supplementWithOCR()
-            } label: {
-                Label(t.ocrBtn, systemImage: "doc.text.viewfinder")
-                    .font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .tint(.blue)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func scanDetectionSummary(for product: OFFProduct?) -> (allergies: Int, intolerances: Int) {
@@ -910,6 +954,8 @@ class PhotoCaptureViewController: UIViewController {
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private let photoOutput = AVCapturePhotoOutput()
+    private var torchOn = false
+    private var flashBtn: UIButton?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -927,6 +973,7 @@ class PhotoCaptureViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        setTorch(on: false)
         captureSession.stopRunning()
     }
 
@@ -954,6 +1001,8 @@ class PhotoCaptureViewController: UIViewController {
     }
 
     private func setupOverlay() {
+        let btnConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+
         // Shutter button — white circle
         let shutterBtn = UIButton(type: .system)
         shutterBtn.translatesAutoresizingMaskIntoConstraints = false
@@ -971,12 +1020,23 @@ class PhotoCaptureViewController: UIViewController {
         cancelBtn.layer.cornerRadius = 24
         cancelBtn.layer.borderWidth = 1
         cancelBtn.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        let xImage = UIImage(systemName: "xmark", withConfiguration: config)
-        cancelBtn.setImage(xImage, for: .normal)
+        cancelBtn.setImage(UIImage(systemName: "xmark", withConfiguration: btnConfig), for: .normal)
         cancelBtn.tintColor = .white
         cancelBtn.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
         view.addSubview(cancelBtn)
+
+        // Flash button
+        let flashButton = UIButton(type: .system)
+        flashButton.translatesAutoresizingMaskIntoConstraints = false
+        flashButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        flashButton.layer.cornerRadius = 24
+        flashButton.layer.borderWidth = 1
+        flashButton.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
+        flashButton.setImage(UIImage(systemName: "bolt.slash.fill", withConfiguration: btnConfig), for: .normal)
+        flashButton.tintColor = .white
+        flashButton.addTarget(self, action: #selector(flashTapped), for: .touchUpInside)
+        view.addSubview(flashButton)
+        self.flashBtn = flashButton
 
         NSLayoutConstraint.activate([
             shutterBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -988,6 +1048,11 @@ class PhotoCaptureViewController: UIViewController {
             cancelBtn.centerYAnchor.constraint(equalTo: shutterBtn.centerYAnchor),
             cancelBtn.widthAnchor.constraint(equalToConstant: 48),
             cancelBtn.heightAnchor.constraint(equalToConstant: 48),
+
+            flashButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            flashButton.centerYAnchor.constraint(equalTo: shutterBtn.centerYAnchor),
+            flashButton.widthAnchor.constraint(equalToConstant: 48),
+            flashButton.heightAnchor.constraint(equalToConstant: 48),
         ])
     }
 
@@ -997,7 +1062,25 @@ class PhotoCaptureViewController: UIViewController {
     }
 
     @objc private func cancelTapped() {
+        setTorch(on: false)
         onCancel?()
+    }
+
+    @objc private func flashTapped() {
+        torchOn.toggle()
+        setTorch(on: torchOn)
+        let iconName = torchOn ? "bolt.fill" : "bolt.slash.fill"
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        flashBtn?.setImage(UIImage(systemName: iconName, withConfiguration: config), for: .normal)
+        flashBtn?.tintColor = torchOn ? .yellow : .white
+    }
+
+    private func setTorch(on: Bool) {
+        guard let device = AVCaptureDevice.default(for: .video),
+              device.hasTorch else { return }
+        try? device.lockForConfiguration()
+        device.torchMode = on ? .on : .off
+        device.unlockForConfiguration()
     }
 }
 
@@ -1006,6 +1089,7 @@ extension PhotoCaptureViewController: AVCapturePhotoCaptureDelegate {
         guard let data = photo.fileDataRepresentation(),
               let image = UIImage(data: data) else { return }
         DispatchQueue.main.async { [weak self] in
+            self?.setTorch(on: false)
             self?.captureSession.stopRunning()
             self?.onPhotoCaptured?(image)
         }
